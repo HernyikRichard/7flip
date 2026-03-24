@@ -88,6 +88,14 @@ export function applyCardToPlayer(
 
     // ── Bust ellenőrzés ────────────────────────────────────────────────
     if (wouldBust(playerState, card.value)) {
+      // Classic: Second Chance elfogyasztja a bustot
+      if (playerState.secondChance) {
+        // A lap eldobódik, secondChance elhasználódik, játékos active marad
+        return {
+          outcome: 'number_added',
+          updatedState: { ...playerState, secondChance: false },
+        }
+      }
       const bustBreakdown = calculateBustScore(playerState, config)
       const updated: RoundPlayerState = {
         ...playerState,
@@ -175,7 +183,9 @@ export function applyCardToPlayer(
       actionType: card.actionType,
       playedByUid: playerState.uid,
       ...actionConfig,
-      flipFourRemaining: card.actionType === 'flip_four' ? 4 : null,
+      flipFourRemaining:
+        card.actionType === 'flip_four'   ? 4 :
+        card.actionType === 'flip_three'  ? 3 : null,
       flipFourCardQueue: [],
       // createdAt: service layer állítja be serverTimestamp()-mal
     }
@@ -216,6 +226,17 @@ function buildActionConfig(
 
     case 'flip_four':
       return { ...base, requiresTargetPlayer: true, availableTargetUids }
+
+    // Classic actions
+    case 'freeze':
+      return { ...base, requiresTargetPlayer: true, availableTargetUids }
+
+    case 'flip_three':
+      return { ...base, requiresTargetPlayer: true, availableTargetUids }
+
+    case 'second_chance':
+      // A kijátszó magának veszi — nincs célpont választás
+      return base
 
     case 'swap':
       // Két kártyát kell kiválasztani (forrás + cél) — nem játékost
@@ -265,7 +286,11 @@ export function isRoundOver(
   playerStates: Record<string, RoundPlayerState>
 ): boolean {
   return Object.values(playerStates).every(
-    (p) => p.status === 'stayed' || p.status === 'busted' || p.status === 'flip7'
+    (p) =>
+      p.status === 'stayed' ||
+      p.status === 'busted' ||
+      p.status === 'flip7'  ||
+      p.status === 'frozen'
   )
 }
 

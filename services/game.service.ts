@@ -20,15 +20,17 @@ import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
 import { initRoundPlayerStates, scoreRound, isRoundOver, getActivePlayers, applyCardToPlayer } from '@/lib/gameStateMachine'
 import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
+import { getModeEngine } from '@/lib/game-modes'
 import { getGameModeConfig } from '@/lib/gameModes'
 import { resolveAction } from '@/lib/actionResolver'
+import type { GameMode } from '@/types/gameMode.types'
 import type { Game, Round, GameEvent, CreateGameData, PendingAction, RoundPlayerState } from '@/types'
 import type { Card } from '@/types/card.types'
 import { writeNotification } from './notification.service'
 
 // ── Játék létrehozása ────────────────────────────────────────────────────────
 export async function createGame(data: CreateGameData): Promise<string> {
-  const config = getGameModeConfig(data.gameMode, data.brutalMode)
+  const config = getGameModeConfig(data.gameMode)
   const ref = await addDoc(collection(db, COLLECTIONS.GAMES), {
     createdBy: data.createdBy,
     status: 'waiting_for_players',
@@ -37,9 +39,9 @@ export async function createGame(data: CreateGameData): Promise<string> {
     roundCount: 0,
     targetScore: config.targetScore,
     gameMode: data.gameMode ?? 'classic',
-    brutalMode: data.brutalMode ?? false,
     pendingAction: null,
     currentRoundId: null,
+    rulesVersion: 2,
     createdAt: serverTimestamp(),
     finishedAt: null,
     winnerId: null,
@@ -175,9 +177,9 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
   const game = await getGame(gameId)
   if (!game) return
 
-  // Pontozás — config szerint (bust büntetés játékmód alapján)
-  const config = getGameModeConfig(game.gameMode ?? 'classic', game.brutalMode ?? false)
-  const scoredStates = scoreRound(round.playerStates, config)
+  // Pontozás — engine szerint (bust büntetés játékmód alapján)
+  const engine = getModeEngine(game.gameMode ?? 'classic')
+  const scoredStates = scoreRound(round.playerStates, engine.config)
 
   const updatedPlayers = game.players.map((p) => {
     const roundScore = scoredStates[p.uid]?.roundScore ?? 0
@@ -307,8 +309,8 @@ export async function drawCardForPlayer(
   const playerState = currentPlayerStates[targetUid]
   if (!playerState) return
 
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
-  const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, config)
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
+  const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, engine.config)
 
   await updateRoundPlayerState(gameId, roundId, targetUid, result.updatedState)
 
@@ -331,9 +333,9 @@ export async function bustPlayerManually(
   currentPlayerStates: Record<string, RoundPlayerState>,
   gameMode?: string
 ): Promise<void> {
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
   const state = currentPlayerStates[targetUid]
-  const bustBreakdown = calculateBustScore(state, config)
+  const bustBreakdown = engine.calculateBustScore(state)
   const updatedState: RoundPlayerState = {
     ...state,
     status: 'busted',
@@ -401,13 +403,12 @@ export async function resolveActionForTarget(
   gameMode?: string
 ): Promise<void> {
   const game = await getGame(gameId)
-  const config = getGameModeConfig(
-    (gameMode ?? game?.gameMode ?? 'classic') as 'classic' | 'revenge',
-    game?.brutalMode ?? false
+  const engine = getModeEngine(
+    ((gameMode ?? game?.gameMode ?? 'classic') as GameMode)
   )
 
   const resolvedAction: PendingAction = { ...action, resolvedTargetUid }
-  const result = resolveAction({ playerStates: currentPlayerStates, action: resolvedAction, config })
+  const result = engine.resolveAction({ playerStates: currentPlayerStates, action: resolvedAction })
 
   // Frissített állapotok mentése Firestore-ba
   for (const [uid, state] of Object.entries(result.updatedStates)) {
@@ -464,10 +465,10 @@ export async function drawMultipleCardsForPlayer(
 ): Promise<void> {
   let state = currentPlayerStates[targetUid]
   if (!state) return
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
   for (const n of numbers) {
     const card: Card = { cardType: 'number', variant: 'normal', value: n }
-    const result = applyCardToPlayer(card, state, currentPlayerStates, 0, config)
+    const result = applyCardToPlayer(card, state, currentPlayerStates, 0, engine.config)
     state = result.updatedState
     if (state.status === 'busted') break
   }

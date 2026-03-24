@@ -62,7 +62,11 @@ function cloneStates(
 
 function checkRoundOver(states: Record<string, RoundPlayerState>): boolean {
   return Object.values(states).every(
-    (s) => s.status === 'stayed' || s.status === 'busted' || s.status === 'flip7'
+    (s) =>
+      s.status === 'stayed' ||
+      s.status === 'busted' ||
+      s.status === 'flip7'  ||
+      s.status === 'frozen'
   )
 }
 
@@ -280,7 +284,9 @@ const handleFlipFour: ActionHandler = ({ playerStates, action }) => {
 // REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ACTION_HANDLERS: Record<ActionType, ActionHandler> = {
+// Classic action handlers are implemented in F3 (lib/game-modes/classic/).
+// Until then, they are not registered here.
+const ACTION_HANDLERS: Partial<Record<ActionType, ActionHandler>> = {
   just_one_more: handleJustOneMore,
   swap:          handleSwap,
   steal:         handleSteal,

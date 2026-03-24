@@ -38,7 +38,7 @@ export function calculateRoundScore(
   // ── 3. Minus modifier-ek összege ────────────────────────────────────────
   const modifierPenalty = state.modifierCards
     .filter((m) => m.modifierType === 'minus')
-    .reduce((s, m) => s + (m.minusValue ?? 0), 0)
+    .reduce((s, m) => s + (m.value ?? m.minusValue ?? 0), 0)
 
   // ── 4. Base score ───────────────────────────────────────────────────────
   // Classic és Revenge: nem mehet 0 alá (kivéve Brutal Mode)

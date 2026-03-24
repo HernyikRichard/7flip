@@ -17,7 +17,8 @@ import {
   applyCardToPlayer,
 } from '@/lib/gameStateMachine'
 import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
-import { getGameModeConfig } from '@/lib/gameModes'
+import { getModeEngine } from '@/lib/game-modes'
+import type { GameMode } from '@/types/gameMode.types'
 import { resolveAction } from '@/lib/actionResolver'
 import { getGame } from './game.service'
 import type { Round, PendingAction, RoundPlayerState } from '@/types'
@@ -94,8 +95,8 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
   const game = await getGame(gameId)
   if (!game) return
 
-  const config = getGameModeConfig(game.gameMode ?? 'classic', game.brutalMode ?? false)
-  const scoredStates = scoreRound(round.playerStates, config)
+  const engine = getModeEngine(game.gameMode ?? 'classic')
+  const scoredStates = scoreRound(round.playerStates, engine.config)
 
   const updatedPlayers = game.players.map((p) => {
     const roundScore = scoredStates[p.uid]?.roundScore ?? 0
@@ -136,8 +137,8 @@ export async function drawCardForPlayer(
   const playerState = currentPlayerStates[targetUid]
   if (!playerState) return
 
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
-  const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, config)
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
+  const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, engine.config)
 
   await updateRoundPlayerState(gameId, roundId, targetUid, result.updatedState)
 
@@ -163,10 +164,10 @@ export async function drawMultipleCardsForPlayer(
 ): Promise<void> {
   let state = currentPlayerStates[targetUid]
   if (!state) return
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
   for (const n of numbers) {
     const card: Card = { cardType: 'number', variant: 'normal', value: n }
-    const result = applyCardToPlayer(card, state, currentPlayerStates, 0, config)
+    const result = applyCardToPlayer(card, state, currentPlayerStates, 0, engine.config)
     state = result.updatedState
     if (state.status === 'busted') break
   }
@@ -203,9 +204,9 @@ export async function bustPlayerManually(
   currentPlayerStates: Record<string, RoundPlayerState>,
   gameMode?: string
 ): Promise<void> {
-  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
   const state = currentPlayerStates[targetUid]
-  const bustBreakdown = calculateBustScore(state, config)
+  const bustBreakdown = engine.calculateBustScore(state)
   const updatedState: RoundPlayerState = {
     ...state,
     status: 'busted',
@@ -254,13 +255,12 @@ export async function resolveActionForTarget(
   gameMode?: string
 ): Promise<void> {
   const game = await getGame(gameId)
-  const config = getGameModeConfig(
-    (gameMode ?? game?.gameMode ?? 'classic') as 'classic' | 'revenge',
-    game?.brutalMode ?? false
+  const engine = getModeEngine(
+    ((gameMode ?? game?.gameMode ?? 'classic') as GameMode)
   )
 
   const resolvedAction: PendingAction = { ...action, resolvedTargetUid }
-  const result = resolveAction({ playerStates: currentPlayerStates, action: resolvedAction, config })
+  const result = engine.resolveAction({ playerStates: currentPlayerStates, action: resolvedAction })
 
   for (const [uid, state] of Object.entries(result.updatedStates)) {
     if (state !== currentPlayerStates[uid]) {

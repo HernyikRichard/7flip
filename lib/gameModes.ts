@@ -1,6 +1,6 @@
 import type { GameMode, GameModeConfig } from '@/types/gameMode.types'
 
-// ── Alap módok (Brutal Mode nélkül) ───────────────────────────────────────
+// ── Mód konfigurációk ──────────────────────────────────────────────────────
 
 export const CLASSIC_MODE_CONFIG: GameModeConfig = {
   mode: 'classic',
@@ -22,18 +22,11 @@ export const REVENGE_MODE_CONFIG: GameModeConfig = {
   brutalFlip7CanPunish: false,
 }
 
-// ── Brutal Mode overlay ────────────────────────────────────────────────────
-// Brutal Mode bármely mód tetejére rakható.
-
-export const BRUTAL_CLASSIC_CONFIG: GameModeConfig = {
-  ...CLASSIC_MODE_CONFIG,
-  allowNegativeScore: true,
-  brutalModifierOnBust: true,
-  brutalFlip7CanPunish: true,
-}
-
-export const BRUTAL_REVENGE_CONFIG: GameModeConfig = {
-  ...REVENGE_MODE_CONFIG,
+export const BRUTAL_MODE_CONFIG: GameModeConfig = {
+  mode: 'brutal',
+  targetScore: 150,
+  flip7Bonus: 20,
+  maxBustPenalty: 50,
   allowNegativeScore: true,
   brutalModifierOnBust: true,
   brutalFlip7CanPunish: true,
@@ -41,12 +34,21 @@ export const BRUTAL_REVENGE_CONFIG: GameModeConfig = {
 
 // ── Konfig builder ─────────────────────────────────────────────────────────
 
+/**
+ * Visszaadja a játékmód konfigurációját.
+ * A `brutalMode` boolean paraméter backward-kompatibilitáshoz megmaradt:
+ * ha `mode === 'revenge'` és `brutalMode === true`, ugyanazt adja mint `mode === 'brutal'`.
+ */
 export function getGameModeConfig(
   mode: GameMode = 'classic',
   brutalMode: boolean = false
 ): GameModeConfig {
-  if (mode === 'revenge') return brutalMode ? BRUTAL_REVENGE_CONFIG : REVENGE_MODE_CONFIG
-  return brutalMode ? BRUTAL_CLASSIC_CONFIG : CLASSIC_MODE_CONFIG
+  if (mode === 'brutal') return BRUTAL_MODE_CONFIG
+  if (mode === 'revenge') return brutalMode ? BRUTAL_MODE_CONFIG : REVENGE_MODE_CONFIG
+  // classic
+  return brutalMode
+    ? { ...CLASSIC_MODE_CONFIG, allowNegativeScore: true, brutalModifierOnBust: true, brutalFlip7CanPunish: true }
+    : CLASSIC_MODE_CONFIG
 }
 
 // ── UI szövegek ────────────────────────────────────────────────────────────
@@ -54,9 +56,11 @@ export function getGameModeConfig(
 export const GAME_MODE_LABELS: Record<GameMode, string> = {
   classic: 'Classic',
   revenge: 'Revenge',
+  brutal:  'Brutal',
 }
 
 export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
   classic: 'Cél: 200 pont · Bust = 0 · Flip 7: +15',
   revenge: 'Cél: 150 pont · Bust = −pont (max −30) · Flip 7: +20',
+  brutal:  'Cél: 150 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: ±20',
 }

@@ -22,6 +22,7 @@ export type RoundPlayerStatus =
   | 'stayed'   // megállt — de action cardokat még fogadhat!
   | 'busted'   // duplikát szám → kiesett (vagy Lucky 13 harmadszor)
   | 'flip7'    // 7 különböző számkártyát összegyűjtött → kör vége trigger
+  | 'frozen'   // Classic: Freeze kártya hatása — egy körig nem húzhat
 
 export interface RoundPlayerState {
   uid: string
@@ -59,6 +60,12 @@ export interface RoundPlayerState {
    * Harmadik 13-asnál bust.
    */
   lucky13Count: number
+
+  /**
+   * Classic: Second Chance kártya a kezében — egy bustot megakadályoz.
+   * Ha true, a következő bust helyett false lesz (és a kártya eldobódik).
+   */
+  secondChance?: boolean
 
   // ── Kör végi pontszám ──────────────────────────────────────────────────
 
@@ -196,21 +203,29 @@ export interface Game {
   id: string
   createdBy: string
   status: GameStatus
-  /** Játékmód — Classic vagy Revenge */
+  /**
+   * Játékmód — 'classic' | 'revenge' | 'brutal'.
+   * A 'brutal' önálló mód (nem boolean overlay).
+   */
   gameMode: GameMode
   /**
-   * Brutal Mode: score mehet negatívba, modifier adható busted-nek,
-   * Flip 7-nél dönthet: +15 magának vagy −15 másnak.
+   * @deprecated Használd a `gameMode: 'brutal'` értéket helyette.
+   * Backward compatibility: régi Firestore dokumentumokban még szerepelhet.
    */
-  brutalMode: boolean
+  brutalMode?: boolean
   players: GamePlayer[]
   playerUids: string[]
   roundCount: number
-  /** Classic: 200, Revenge: 150 */
+  /** Classic: 200, Revenge/Brutal: 150 */
   targetScore: number
   /** Denormalizált a gyors UI-hoz */
   pendingAction: PendingAction | null
   currentRoundId: string | null
+  /**
+   * Szabályverziót rögzíti — a jövőbeli migrációkhoz.
+   * Jelenlegi: 2
+   */
+  rulesVersion?: number
   createdAt: Timestamp
   finishedAt: Timestamp | null
   winnerId: string | null
@@ -221,7 +236,6 @@ export type CreateGameData = {
   players: GamePlayer[]
   playerUids: string[]
   gameMode: GameMode
-  brutalMode: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

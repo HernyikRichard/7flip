@@ -1,4 +1,4 @@
-import type { ActionType, ModifierType, NumberCardVariant } from '@/types/card.types'
+import type { ActionType, ClassicActionType, RevengeActionType, ModifierType, NumberCardVariant } from '@/types/card.types'
 
 // ── Játékos státusz labelek ────────────────────────────────────────────────
 
@@ -7,26 +7,51 @@ export const PLAYER_STATUS_LABELS = {
   stayed:  'Megállt',
   busted:  'Bust 💥',
   flip7:   'Flip 7! 🎉',
+  frozen:  'Fagyasztva ❄️',
 } as const
 
 // ── Akciókártyák megjelenítési neve ───────────────────────────────────────
 
 export const ACTION_CARD_LABELS: Record<ActionType, string> = {
+  // Revenge / Brutal
   just_one_more: '➕ Just One More',
   swap:          '🔀 Swap',
   steal:         '🫳 Steal',
   discard:       '🗑️ Discard',
   flip_four:     '🔄 Flip Four',
+  // Classic
+  freeze:        '❄️ Freeze',
+  flip_three:    '🔄 Flip Three',
+  second_chance: '🍀 Second Chance',
 }
 
 // ── Akciókártyák UI-stílusa ────────────────────────────────────────────────
 
 export const ACTION_CARD_COLORS: Record<ActionType, string> = {
+  // Revenge / Brutal
   just_one_more: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950 dark:text-blue-300',
   swap:          'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300',
   steal:         'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950 dark:text-orange-300',
   discard:       'bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-300',
   flip_four:     'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300',
+  // Classic
+  freeze:        'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-950 dark:text-cyan-300',
+  flip_three:    'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-950 dark:text-yellow-300',
+  second_chance: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
+}
+
+export const CLASSIC_ACTION_CARD_LABELS: Record<ClassicActionType, string> = {
+  freeze:        ACTION_CARD_LABELS.freeze,
+  flip_three:    ACTION_CARD_LABELS.flip_three,
+  second_chance: ACTION_CARD_LABELS.second_chance,
+}
+
+export const REVENGE_ACTION_CARD_LABELS: Record<RevengeActionType, string> = {
+  just_one_more: ACTION_CARD_LABELS.just_one_more,
+  swap:          ACTION_CARD_LABELS.swap,
+  steal:         ACTION_CARD_LABELS.steal,
+  discard:       ACTION_CARD_LABELS.discard,
+  flip_four:     ACTION_CARD_LABELS.flip_four,
 }
 
 // ── Módosítókártyák megjelenítési neve ────────────────────────────────────
@@ -34,6 +59,8 @@ export const ACTION_CARD_COLORS: Record<ActionType, string> = {
 export const MODIFIER_CARD_LABELS: Record<ModifierType, string> = {
   divide2: '÷2',
   minus:   '−',
+  x2:      '×2',
+  plus:    '+',
 }
 
 // ── Módosítókártyák UI-stílusa ─────────────────────────────────────────────
@@ -41,6 +68,8 @@ export const MODIFIER_CARD_LABELS: Record<ModifierType, string> = {
 export const MODIFIER_CARD_COLORS: Record<ModifierType, string> = {
   divide2: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300',
   minus:   'bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-300',
+  x2:      'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300',
+  plus:    'bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-300',
 }
 
 // ── Számkártyák UI-stílusa ────────────────────────────────────────────────
@@ -64,9 +93,14 @@ export const SPECIAL_NUMBER_LABELS: Record<NumberCardVariant, string> = {
 // ── Action card rövid leírása (UI tooltiphez) ──────────────────────────────
 
 export const ACTION_CARD_DESCRIPTIONS: Record<ActionType, string> = {
+  // Revenge / Brutal
   just_one_more: 'Célpont kap 1 lapot, majd stayed lesz',
   swap:          'Két face-up lap helyet cserél (bustot okozhat)',
   steal:         'Egy face-up lapot elveszel a saját kezedhez',
   discard:       'Célpont egy lapját eldobod',
   flip_four:     'Célpont kap 4 lapot egyenként',
+  // Classic
+  freeze:        'Célpont egy körig nem húzhat',
+  flip_three:    'Célpont kap 3 lapot egyenként',
+  second_chance: 'Egy bustot megakadályoz (egyszeri)',
 }

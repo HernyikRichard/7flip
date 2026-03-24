@@ -65,7 +65,6 @@ export default function NewGamePage() {
         })),
         playerUids: allPlayers.map((p) => p.uid),
         gameMode,
-        brutalMode: false,
       })
       router.push(`/games/${gameId}`)
     } catch (err) {
