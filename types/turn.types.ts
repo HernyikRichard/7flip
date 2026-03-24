@@ -29,6 +29,14 @@ export type TurnEventType =
   | 'round_scored'
   | 'round_ended'
   | 'game_ended'
+  // Classic action events
+  | 'freeze_applied'
+  | 'player_frozen'
+  | 'flip_three_card_dealt'
+  | 'flip_three_complete'
+  | 'second_chance_used'
+  // Brutal events
+  | 'brutal_flip7_choice'
 
 export interface TurnEvent {
   id: string

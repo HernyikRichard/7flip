@@ -36,14 +36,14 @@ export const GAME_MODE_META: Record<GameMode, GameModeMeta> = {
   revenge: {
     mode:        'revenge',
     label:       'Revenge',
-    description: 'Cél: 150 pont · Bust = −pont (max −30) · Flip 7: +20',
+    description: 'Cél: 200 pont · Bust = −pont (max −30) · Flip 7: +15',
     colorClass:  'red',
     available:   true,
   },
   brutal: {
     mode:        'brutal',
     label:       'Brutal',
-    description: 'Cél: 150 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: ±20',
+    description: 'Cél: 200 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: +15 v. −15',
     colorClass:  'orange',
     available:   true,
   },

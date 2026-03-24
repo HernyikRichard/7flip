@@ -156,7 +156,7 @@ export function applyCardToPlayer(
 
   // ── AKCIÓKÁRTYA ───────────────────────────────────────────────────────────
   if (isActionCard(card)) {
-    // Aktív (nem busted) játékosok uid-jai
+    // Nem-busted játékosok uid-jai (Just One More, Flip Four stb. célpontjai)
     const nonBustedUids = Object.values(allPlayerStates)
       .filter((s) => s.status !== 'busted')
       .map((s) => s.uid)
@@ -165,18 +165,38 @@ export function applyCardToPlayer(
     const availableTargetUids =
       nonBustedUids.length === 1 ? [playerState.uid] : nonBustedUids
 
-    // Face-up kártyák (szám + modifier) az összes nem-busted játékostól
+    // Brutal: Discard is célozhat busted játékost, ha van modifier kártyája
+    const discardTargetUids = config.brutalModifierOnBust
+      ? [
+          ...nonBustedUids,
+          ...Object.values(allPlayerStates)
+            .filter((s) => s.status === 'busted' && s.modifierCards.length > 0)
+            .map((s) => s.uid),
+        ]
+      : availableTargetUids
+
+    // Face-up kártyák (szám + modifier) az összes nem-busted játékostól.
+    // Brutal: busted játékos modifier kártyái is elérhetők (Swap/Steal/Discard számára).
     const availableCards: CardRef[] = []
     for (const [uid, s] of Object.entries(allPlayerStates)) {
-      if (s.status === 'busted') continue
-      s.handCards.forEach((h, idx) => {
-        if (h.card.cardType === 'number' || h.card.cardType === 'modifier') {
-          availableCards.push({ ownerUid: uid, handCardIndex: idx })
-        }
-      })
+      if (s.status === 'busted') {
+        if (!config.brutalModifierOnBust) continue
+        // Csak modifier kártyák busted játékosoknál
+        s.handCards.forEach((h, idx) => {
+          if (h.card.cardType === 'modifier') {
+            availableCards.push({ ownerUid: uid, handCardIndex: idx })
+          }
+        })
+      } else {
+        s.handCards.forEach((h, idx) => {
+          if (h.card.cardType === 'number' || h.card.cardType === 'modifier') {
+            availableCards.push({ ownerUid: uid, handCardIndex: idx })
+          }
+        })
+      }
     }
 
-    const actionConfig = buildActionConfig(card.actionType, availableTargetUids, availableCards)
+    const actionConfig = buildActionConfig(card.actionType, availableTargetUids, discardTargetUids, availableCards)
 
     const pending: PendingAction = {
       id: crypto.randomUUID(),
@@ -202,6 +222,7 @@ export function applyCardToPlayer(
 function buildActionConfig(
   actionType: import('@/types/card.types').ActionType,
   availableTargetUids: string[],
+  discardTargetUids: string[],
   availableCards: CardRef[]
 ): Pick<
   PendingAction,
@@ -251,11 +272,12 @@ function buildActionConfig(
       return { ...base, requiresTargetCard: true, availableCards }
 
     case 'discard':
-      // Először a játékost, majd a játékos egyik lapját kell kiválasztani
+      // Először a játékost, majd a játékos egyik lapját kell kiválasztani.
+      // Brutal: discardTargetUids kiterjesztve busted játékosokra is (modifier lapokért).
       return {
         ...base,
         requiresTargetPlayer: true,
-        availableTargetUids,
+        availableTargetUids: discardTargetUids,
         requiresTargetCard: true,
         availableCards,
       }

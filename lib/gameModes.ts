@@ -14,8 +14,8 @@ export const CLASSIC_MODE_CONFIG: GameModeConfig = {
 
 export const REVENGE_MODE_CONFIG: GameModeConfig = {
   mode: 'revenge',
-  targetScore: 150,
-  flip7Bonus: 20,
+  targetScore: 200,
+  flip7Bonus: 15,
   maxBustPenalty: 30,
   allowNegativeScore: false,
   brutalModifierOnBust: false,
@@ -24,8 +24,8 @@ export const REVENGE_MODE_CONFIG: GameModeConfig = {
 
 export const BRUTAL_MODE_CONFIG: GameModeConfig = {
   mode: 'brutal',
-  targetScore: 150,
-  flip7Bonus: 20,
+  targetScore: 200,
+  flip7Bonus: 15,
   maxBustPenalty: 50,
   allowNegativeScore: true,
   brutalModifierOnBust: true,
@@ -61,6 +61,6 @@ export const GAME_MODE_LABELS: Record<GameMode, string> = {
 
 export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
   classic: 'Cél: 200 pont · Bust = 0 · Flip 7: +15',
-  revenge: 'Cél: 150 pont · Bust = −pont (max −30) · Flip 7: +20',
-  brutal:  'Cél: 150 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: ±20',
+  revenge: 'Cél: 200 pont · Bust = −pont (max −30) · Flip 7: +15',
+  brutal:  'Cél: 200 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: +15 v. −15',
 }

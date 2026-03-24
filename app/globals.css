@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Class-alapú sötét mód Tailwind v4-ben (dark: utility-k a .dark class-ra reagálnak) */
+/* Class-alapú sötét mód Tailwind v4-ben */
 @variant dark (&:where(.dark, .dark *));
 
 /* =============================================
@@ -8,12 +8,11 @@
    ============================================= */
 
 @theme inline {
-  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Brand colors */
-  --color-primary-50: #eef2ff;
+  /* ── Primary — Electric Indigo ─────────────── */
+  --color-primary-50:  #eef2ff;
   --color-primary-100: #e0e7ff;
   --color-primary-200: #c7d2fe;
   --color-primary-300: #a5b4fc;
@@ -23,64 +22,80 @@
   --color-primary-700: #4338ca;
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
 
-  /* Surface colors */
-  --color-surface: var(--surface);
-  --color-surface-elevated: var(--surface-elevated);
-  --color-border: var(--border);
+  /* ── Warning / Flip7 scale ──────────────────── */
+  --color-warning-50:  #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-900: #78350f;
+  --color-warning-950: #451a03;
 
-  /* Semantic */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-}
-
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --border: #e2e8f0;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-}
-
-/* Rendszer preferencia (JS betöltés előtti fallback, csak ha nincs .light override) */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #0f172a;
-    --foreground: #f1f5f9;
-    --surface: #1e293b;
-    --surface-elevated: #334155;
-    --border: #334155;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-  }
-}
-
-/* JS-vezérelt sötét mód (.dark class a <html>-en) */
-html.dark {
-  --background: #0f172a;
-  --foreground: #f1f5f9;
-  --surface: #1e293b;
-  --surface-elevated: #334155;
-  --border: #334155;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
+  /* ── Semantic surface tokens ────────────────── */
+  --color-background:        var(--background);
+  --color-foreground:        var(--foreground);
+  --color-surface:           var(--surface);
+  --color-surface-elevated:  var(--surface-elevated);
+  --color-border:            var(--border);
+  --color-muted:             var(--muted);
+  --color-muted-foreground:  var(--muted-foreground);
 }
 
 /* =============================================
-   Base stílusok
+   LIGHT MODE
    ============================================= */
+:root {
+  --background:      #f0f4ff;
+  --foreground:      #0b1128;
+  --surface:         #ffffff;
+  --surface-elevated:#f5f8ff;
+  --border:          #dde4f8;
+  --muted:           #eef2ff;
+  --muted-foreground:#5a6a8a;
+}
 
+/* =============================================
+   DARK MODE — system preference fallback
+   ============================================= */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background:      #090d1a;
+    --foreground:      #e2e8f8;
+    --surface:         #0f1628;
+    --surface-elevated:#162038;
+    --border:          #1e2945;
+    --muted:           #111827;
+    --muted-foreground:#6b7897;
+  }
+}
+
+/* =============================================
+   DARK MODE — JS-vezérelt (.dark class)
+   ============================================= */
+html.dark {
+  --background:      #090d1a;
+  --foreground:      #e2e8f8;
+  --surface:         #0f1628;
+  --surface-elevated:#162038;
+  --border:          #1e2945;
+  --muted:           #111827;
+  --muted-foreground:#6b7897;
+}
+
+/* =============================================
+   BASE STYLES
+   ============================================= */
 * {
   box-sizing: border-box;
 }
 
 html {
-  /* PWA safe area — notch, home indicator */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 body {
@@ -89,24 +104,116 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Mobil: ne lehessen véletlenül kizoomolni */
   touch-action: manipulation;
 }
 
-/* Toast animáció */
+/* =============================================
+   GAME STATE GLOWS
+   Állapot-vezérelt vizuális hangsúlyok
+   ============================================= */
+
+.glow-flip7 {
+  box-shadow: 0 0 0 2px #f59e0b, 0 0 24px rgba(245, 158, 11, 0.18);
+}
+.glow-bust {
+  box-shadow: 0 0 0 2px #ef4444, 0 0 20px rgba(239, 68, 68, 0.14);
+}
+.glow-frozen {
+  box-shadow: 0 0 0 2px #06b6d4, 0 0 20px rgba(6, 182, 212, 0.16);
+}
+.glow-stayed {
+  box-shadow: 0 0 0 2px #10b981, 0 0 18px rgba(16, 185, 129, 0.13);
+}
+.glow-primary {
+  box-shadow: 0 0 0 2px #6366f1, 0 0 20px rgba(99, 102, 241, 0.16);
+}
+.glow-brutal {
+  box-shadow: 0 0 0 2px #f97316, 0 0 24px rgba(249, 115, 22, 0.15);
+}
+
+/* =============================================
+   CARD SHADOWS
+   ============================================= */
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+}
+.card-shadow-md {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06);
+}
+.dark .card-shadow {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.03);
+}
+.dark .card-shadow-md {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+/* =============================================
+   ANIMATIONS
+   ============================================= */
+
+@keyframes slide-up-sheet {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes card-appear {
+  from { opacity: 0; transform: scale(0.82) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+/* Toast legacy */
 @keyframes slide-in-from-bottom-4 {
   from { transform: translateY(1rem); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
+
+.animate-slide-up    { animation: slide-up-sheet 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-fade-in     { animation: fade-in-up 0.2s ease-out both; }
+.animate-scale-in    { animation: scale-in 0.16s ease-out both; }
+.animate-card-appear { animation: card-appear 0.22s ease-out both; }
+.animate-pulse-soft  { animation: pulse-soft 2s ease-in-out infinite; }
+
 .animate-in { animation-fill-mode: both; }
 .slide-in-from-bottom-4 { animation-name: slide-in-from-bottom-4; }
 .duration-200 { animation-duration: 200ms; }
 
-/* Scrollbar elrejtése mobil scrollable konténereknél */
+/* =============================================
+   UTILITIES
+   ============================================= */
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Kártyachip — egységes playing card arányok */
+.card-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.75rem;
+  border-radius: 0.625rem;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1.5px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  user-select: none;
+  flex-shrink: 0;
 }

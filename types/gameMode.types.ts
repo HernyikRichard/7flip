@@ -10,7 +10,7 @@ export interface GameModeConfig {
   mode: GameMode
   /** Célpontszám */
   targetScore: number
-  /** Flip 7 bónusz — Classic: 15, Revenge/Brutal: 20 */
+  /** Flip 7 bónusz — Classic/Revenge: 15; Brutal: 15 (a büntetés/bónusz a choice mechanism-ban) */
   flip7Bonus: number
   /** Bust büntetés maximuma — Classic: 0 (nincs), Revenge: 30 (max −30), Brutal: 50 */
   maxBustPenalty: number

@@ -12,6 +12,7 @@ import {
   bustPlayerManually,
   setDirectScore,
   resolveActionForTarget,
+  resolveBrutalFlip7Choice,
   finishRound,
 } from '@/services/round.service'
 import { usePresence } from '@/hooks/usePresence'
@@ -48,10 +49,16 @@ export default function GamePage() {
     </div>
   )
 
-  const isFinished     = game.status === 'game_finished'
-  const isInRound      = game.status === 'in_round'
-  const isRoundDone    = game.status === 'round_finished'
-  const isAwaiting     = game.status === 'awaiting_action'
+  const isFinished          = game.status === 'game_finished'
+  const isInRound           = game.status === 'in_round'
+  const isRoundDone         = game.status === 'round_finished'
+  const isAwaiting          = game.status === 'awaiting_action'
+  const isBrutalFlip7Choice = game.status === 'awaiting_brutal_flip7'
+
+  // Brutal Flip 7: a chooser az aktuális user-e?
+  const brutalFlip7Pending   = currentRound?.pendingBrutalFlip7 ?? null
+  const isBrutalFlip7Chooser = isBrutalFlip7Choice &&
+    brutalFlip7Pending?.chooserUid === user.uid
   const winner         = game.players.find((p) => p.uid === game.winnerId)
   const sorted         = [...game.players].sort((a, b) => b.totalScore - a.totalScore)
   const pendingAction  = game.pendingAction
@@ -142,6 +149,14 @@ export default function GamePage() {
     } finally { setBusy(false) }
   }
 
+  async function handleBrutalFlip7Choice(targetUid: string) {
+    if (!currentRound || !brutalFlip7Pending) return
+    setBusy(true)
+    try {
+      await resolveBrutalFlip7Choice(id, currentRound.id, brutalFlip7Pending.chooserUid, targetUid)
+    } finally { setBusy(false) }
+  }
+
   async function handleForceFinishRound() {
     if (!currentRound) return
     setBusy(true)
@@ -222,7 +237,7 @@ export default function GamePage() {
         )}
 
         {/* Aktív kör */}
-        {(isInRound || isAwaiting) && currentRound && (
+        {(isInRound || isAwaiting || isBrutalFlip7Choice) && currentRound && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -231,6 +246,11 @@ export default function GamePage() {
               {isAwaiting && pendingAction && (
                 <span className="text-xs text-warning-600 dark:text-warning-400 font-medium">
                   Döntés szükséges…
+                </span>
+              )}
+              {isBrutalFlip7Choice && (
+                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  🔥 Flip 7 — Brutal döntés…
                 </span>
               )}
             </div>
@@ -361,6 +381,66 @@ export default function GamePage() {
         )}
 
       </div>
+
+      {/* Brutal Flip 7 choice modal */}
+      {isBrutalFlip7Choice && brutalFlip7Pending && isBrutalFlip7Chooser && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col justify-end bg-black/50 backdrop-blur-sm"
+        >
+          <div className="bg-surface rounded-t-3xl border-t border-border flex flex-col">
+            <div className="flex justify-center pt-2.5 pb-1">
+              <div className="w-10 h-1 rounded-full bg-border" />
+            </div>
+            <div className="px-4 pt-2 pb-3">
+              <p className="font-bold text-foreground text-base">🔥 Flip 7 — Brutal döntés</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Vegyél fel +15 pontot, vagy büntess meg egy játékost −15-tel.
+              </p>
+            </div>
+            <div
+              className="flex flex-col gap-2 px-4"
+              style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              {/* +15 magának */}
+              <button
+                disabled={busy}
+                onClick={() => handleBrutalFlip7Choice(brutalFlip7Pending.chooserUid)}
+                className="rounded-2xl border-2 border-primary-400 bg-primary-50 dark:bg-primary-950/40 px-4 py-3 text-sm font-semibold text-primary-700 dark:text-primary-300 text-left active:scale-[0.98] transition-transform disabled:opacity-40"
+              >
+                🎉 +15 pont — magamnak
+              </button>
+              {/* −15 ellenfélnek */}
+              {brutalFlip7Pending.availableTargetUids.map((uid) => {
+                const p = game.players.find((pl) => pl.uid === uid)
+                if (!p) return null
+                return (
+                  <button
+                    key={uid}
+                    disabled={busy}
+                    onClick={() => handleBrutalFlip7Choice(uid)}
+                    className="rounded-2xl border-2 border-red-300 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-700 dark:text-red-300 text-left active:scale-[0.98] transition-transform disabled:opacity-40"
+                  >
+                    💀 −15 pont — {p.displayName}-nek
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Brutal Flip 7: várakozás más játékos döntésére */}
+      {isBrutalFlip7Choice && brutalFlip7Pending && !isBrutalFlip7Chooser && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none">
+          <div className="bg-surface rounded-3xl border border-border px-6 py-5 text-center flex flex-col gap-2 shadow-xl">
+            <p className="text-2xl">🔥</p>
+            <p className="font-bold text-foreground">
+              {game.players.find((p) => p.uid === brutalFlip7Pending.chooserUid)?.displayName ?? '?'} dönt…
+            </p>
+            <p className="text-sm text-muted-foreground">Flip 7 Brutal döntés folyamatban</p>
+          </div>
+        </div>
+      )}
 
       {/* Pending action: target kiválasztása */}
       {isAwaiting && pendingAction && !pendingAction.resolvedTargetUid && (

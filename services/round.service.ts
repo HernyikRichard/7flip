@@ -96,7 +96,49 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
   if (!game) return
 
   const engine = getModeEngine(game.gameMode ?? 'classic')
-  const scoredStates = scoreRound(round.playerStates, engine.config)
+  let scoredStates = scoreRound(round.playerStates, engine.config)
+
+  // ── Brutal Flip 7 choice alkalmazása ──────────────────────────────────────
+  // A scoreRound UTÁN futtatjuk, hogy a busted penalty-k már ki legyenek számolva,
+  // és a -15 büntetés / +15 bónusz felülírja a végső total-t.
+  if (round.resolvedBrutalFlip7Choice) {
+    const { chooserUid, targetUid } = round.resolvedBrutalFlip7Choice
+    const FLIP7_AMOUNT = engine.config.flip7Bonus  // 15
+
+    if (targetUid === chooserUid) {
+      // Chooser +15 bónusz magának
+      const s = scoredStates[chooserUid]
+      if (s) {
+        const newTotal = (s.roundScore ?? 0) + FLIP7_AMOUNT
+        scoredStates = {
+          ...scoredStates,
+          [chooserUid]: {
+            ...s,
+            roundScore:     newTotal,
+            scoreBreakdown: s.scoreBreakdown
+              ? { ...s.scoreBreakdown, flip7Bonus: FLIP7_AMOUNT, total: newTotal }
+              : s.scoreBreakdown,
+          },
+        }
+      }
+    } else {
+      // Target −15 büntetés (negatív megengedett Brutal-ban)
+      const s = scoredStates[targetUid]
+      if (s) {
+        const newTotal = (s.roundScore ?? 0) - FLIP7_AMOUNT
+        scoredStates = {
+          ...scoredStates,
+          [targetUid]: {
+            ...s,
+            roundScore:     newTotal,
+            scoreBreakdown: s.scoreBreakdown
+              ? { ...s.scoreBreakdown, total: newTotal }
+              : s.scoreBreakdown,
+          },
+        }
+      }
+    }
+  }
 
   const updatedPlayers = game.players.map((p) => {
     const roundScore = scoredStates[p.uid]?.roundScore ?? 0
@@ -147,6 +189,22 @@ export async function drawCardForPlayer(
     return
   }
 
+  // ── Brutal Flip 7: choice-t kérünk a játékostól (+15 magának v. −15 ellenfélnek) ──
+  if (result.outcome === 'flip7' && engine.config.brutalFlip7CanPunish) {
+    const availableTargetUids = Object.keys(currentPlayerStates).filter(
+      (uid) => uid !== targetUid
+    )
+    await Promise.all([
+      updateDoc(doc(db, COLLECTIONS.GAMES, gameId, COLLECTIONS.ROUNDS, roundId), {
+        pendingBrutalFlip7: { chooserUid: targetUid, availableTargetUids },
+      }),
+      updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
+        status: 'awaiting_brutal_flip7',
+      }),
+    ])
+    return
+  }
+
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: result.updatedState }
   if (isRoundOver(newPlayerStates)) {
     await finishRound(gameId, roundId)
@@ -169,9 +227,26 @@ export async function drawMultipleCardsForPlayer(
     const card: Card = { cardType: 'number', variant: 'normal', value: n }
     const result = applyCardToPlayer(card, state, currentPlayerStates, 0, engine.config)
     state = result.updatedState
-    if (state.status === 'busted') break
+    if (state.status === 'busted' || state.status === 'flip7') break
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, state)
+
+  // ── Brutal Flip 7: choice-t kérünk ───────────────────────────────────────
+  if (state.status === 'flip7' && engine.config.brutalFlip7CanPunish) {
+    const availableTargetUids = Object.keys(currentPlayerStates).filter(
+      (uid) => uid !== targetUid
+    )
+    await Promise.all([
+      updateDoc(doc(db, COLLECTIONS.GAMES, gameId, COLLECTIONS.ROUNDS, roundId), {
+        pendingBrutalFlip7: { chooserUid: targetUid, availableTargetUids },
+      }),
+      updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
+        status: 'awaiting_brutal_flip7',
+      }),
+    ])
+    return
+  }
+
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: state }
   if (isRoundOver(newPlayerStates)) {
     await finishRound(gameId, roundId)
@@ -243,6 +318,33 @@ export async function setDirectScore(
   if (isRoundOver(newPlayerStates)) {
     await finishRound(gameId, roundId)
   }
+}
+
+// ── Brutal Flip 7 choice feloldása ───────────────────────────────────────────
+/**
+ * A Flip 7-et elérő játékos dönt Brutal módban:
+ * - targetUid === chooserUid → +15 bónusz magának
+ * - targetUid !== chooserUid → −15 büntetés a célpontnak
+ */
+export async function resolveBrutalFlip7Choice(
+  gameId: string,
+  roundId: string,
+  chooserUid: string,
+  targetUid: string,
+): Promise<void> {
+  // Feloldott choice rögzítése — finishRound olvassa és alkalmazza
+  await updateDoc(
+    doc(db, COLLECTIONS.GAMES, gameId, COLLECTIONS.ROUNDS, roundId),
+    {
+      pendingBrutalFlip7:       null,
+      resolvedBrutalFlip7Choice: { chooserUid, targetUid },
+    }
+  )
+  // Game státusz visszaállítása, majd kör lezárása
+  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
+    status: 'in_round',
+  })
+  await finishRound(gameId, roundId)
 }
 
 // ── Akciókártya feloldása ─────────────────────────────────────────────────────
