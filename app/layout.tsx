@@ -46,6 +46,7 @@ export default function RootLayout({
     <html
       lang="hu"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
       <head>
         {/* Téma flash megelőzése: JS-ben azonnal beállítjuk a .dark osztályt */}

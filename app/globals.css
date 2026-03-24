@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Class-alapú sötét mód Tailwind v4-ben (dark: utility-k a .dark class-ra reagálnak) */
-@custom-variant dark (&:where(.dark, .dark *));
+@variant dark (&:where(.dark, .dark *));
 
 /* =============================================
    7flip — Design Tokens
