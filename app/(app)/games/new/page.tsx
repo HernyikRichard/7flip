@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useFriends } from '@/hooks/useFriends'
 import { createGame } from '@/services/game.service'
-import { GAME_MODE_LABELS, GAME_MODE_DESCRIPTIONS } from '@/lib/gameModes'
+import { GAME_MODE_META } from '@/lib/game-modes'
 import TopBar from '@/components/layout/TopBar'
 import PlayerSelector from '@/components/games/PlayerSelector'
 import Button from '@/components/ui/Button'
@@ -103,21 +103,21 @@ export default function NewGamePage() {
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Játékmód</h2>
           <div className="grid grid-cols-2 gap-2">
-            {(['classic', 'revenge'] as GameMode[]).map((mode) => (
+            {Object.values(GAME_MODE_META).filter((m) => m.available).map((meta) => (
               <button
-                key={mode}
+                key={meta.mode}
                 type="button"
-                onClick={() => setGameMode(mode)}
+                onClick={() => setGameMode(meta.mode)}
                 className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
-                  gameMode === mode
+                  gameMode === meta.mode
                     ? 'border-primary-400 bg-primary-50 dark:bg-primary-950'
                     : 'border-border bg-surface'
                 }`}
               >
-                <p className={`font-semibold text-sm ${gameMode === mode ? 'text-primary-700 dark:text-primary-300' : 'text-foreground'}`}>
-                  {mode === 'classic' ? '🎯' : '💀'} {GAME_MODE_LABELS[mode]}
+                <p className={`font-semibold text-sm ${gameMode === meta.mode ? 'text-primary-700 dark:text-primary-300' : 'text-foreground'}`}>
+                  {meta.label}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{GAME_MODE_DESCRIPTIONS[mode]}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{meta.description}</p>
               </button>
             ))}
           </div>

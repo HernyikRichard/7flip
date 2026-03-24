@@ -24,7 +24,7 @@ import PlayerRoundRow from '@/components/games/round/PlayerRoundRow'
 import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import { ROUTES } from '@/lib/constants'
-import { GAME_MODE_LABELS } from '@/lib/gameModes'
+import { GAME_MODE_META } from '@/lib/game-modes'
 import type { Card } from '@/types/card.types'
 
 export default function GamePage() {
@@ -57,8 +57,13 @@ export default function GamePage() {
   const pendingAction  = game.pendingAction
   const allAccepted    = game.players.every((p) => !p.inviteStatus || p.inviteStatus === 'accepted')
 
-  // Flip Four akció: ki a célpont?
-  const isFlipFourActive = isAwaiting && pendingAction?.actionType === 'flip_four' && pendingAction.resolvedTargetUid
+  // Flip Four / Flip Three akció: ki a célpont?
+  const isFlipMultiActive = isAwaiting &&
+    (pendingAction?.actionType === 'flip_four' || pendingAction?.actionType === 'flip_three') &&
+    pendingAction.resolvedTargetUid
+  const flipMultiTotal = pendingAction?.actionType === 'flip_three' ? 3 : 4
+  // backward compat
+  const isFlipFourActive = isFlipMultiActive
 
   async function handleStartRound() {
     setBusy(true)
@@ -88,10 +93,10 @@ export default function GamePage() {
     setBusy(true)
     setPickerForUid(null)
     try {
-      if (isFlipFourActive && pendingAction?.resolvedTargetUid) {
+      if (isFlipMultiActive && pendingAction?.resolvedTargetUid) {
         await drawCardForPlayer(id, currentRound.id, pendingAction.resolvedTargetUid, card, currentRound.playerStates, gameMode)
         const next = flipFourCount + 1
-        if (next < 4) {
+        if (next < flipMultiTotal) {
           setFlipFourCount(next)
           setPickerForUid(pendingAction.resolvedTargetUid)
         } else {
@@ -130,7 +135,7 @@ export default function GamePage() {
     setBusy(true)
     try {
       await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
-      if (pendingAction.actionType === 'flip_four') {
+      if (pendingAction.actionType === 'flip_four' || pendingAction.actionType === 'flip_three') {
         setFlipFourCount(0)
         setPickerForUid(targetUid)
       }
@@ -154,7 +159,7 @@ export default function GamePage() {
   }
 
   const pickerPlayer    = pickerForUid ? game.players.find((p) => p.uid === pickerForUid) : null
-  const pickerUidForNumbers = (isFlipFourActive && pendingAction?.resolvedTargetUid)
+  const pickerUidForNumbers = (isFlipMultiActive && pendingAction?.resolvedTargetUid)
     ? pendingAction.resolvedTargetUid
     : pickerForUid
   const existingNumbers = pickerUidForNumbers
@@ -171,11 +176,13 @@ export default function GamePage() {
           <div className="flex items-center gap-2">
             <p className="text-sm text-muted-foreground">{game.roundCount}. kör · Cél: {game.targetScore} pont</p>
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              game.gameMode === 'revenge'
+              game.gameMode === 'brutal'
+                ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
+                : game.gameMode === 'revenge'
                 ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
                 : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
             }`}>
-              {game.gameMode === 'revenge' ? '💀' : '🎯'} {GAME_MODE_LABELS[game.gameMode ?? 'classic']}
+              {GAME_MODE_META[game.gameMode ?? 'classic'].label}
             </span>
           </div>
           <GameStatusBadge status={game.status} />
@@ -232,7 +239,7 @@ export default function GamePage() {
               const state = currentRound.playerStates[player.uid]
               if (!state) return null
               const isFlipFourTarget = !!(
-                pendingAction?.actionType === 'flip_four' &&
+                (pendingAction?.actionType === 'flip_four' || pendingAction?.actionType === 'flip_three') &&
                 pendingAction.resolvedTargetUid === player.uid
               )
               return (
@@ -291,6 +298,9 @@ export default function GamePage() {
                           : [
                               `Számok: ${state.scoreBreakdown.numberSum}`,
                               state.scoreBreakdown.divide2Applied && `÷2 = ${state.scoreBreakdown.halvedSum}`,
+                              !state.scoreBreakdown.divide2Applied &&
+                                state.scoreBreakdown.halvedSum !== state.scoreBreakdown.numberSum &&
+                                `×2 = ${state.scoreBreakdown.halvedSum}`,
                               state.scoreBreakdown.modifierPenalty > 0 && `-${state.scoreBreakdown.modifierPenalty}`,
                               state.scoreBreakdown.flip7Bonus > 0 && `🎉+${state.scoreBreakdown.flip7Bonus}`,
                               `= ${state.scoreBreakdown.total} p`,
@@ -353,8 +363,8 @@ export default function GamePage() {
       {pickerForUid && pickerPlayer && (
         <CardPickerModal
           playerName={
-            isFlipFourActive && pendingAction?.resolvedTargetUid
-              ? `${pickerPlayer.displayName} (Flip Four — ${flipFourCount + 1}/4)`
+            isFlipMultiActive && pendingAction?.resolvedTargetUid
+              ? `${pickerPlayer.displayName} (${pendingAction.actionType === 'flip_three' ? 'Flip Three' : 'Flip Four'} — ${flipFourCount + 1}/${flipMultiTotal})`
               : pickerPlayer.displayName
           }
           gameMode={gameMode}

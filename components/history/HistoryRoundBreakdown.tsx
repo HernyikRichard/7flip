@@ -14,10 +14,9 @@ interface Props {
 }
 
 function statusStyle(status: string): string {
-  if (status === 'busted')
-    return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-  if (status === 'flip7')
-    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+  if (status === 'busted')  return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+  if (status === 'flip7')   return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+  if (status === 'frozen')  return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300'
   return 'bg-muted text-muted-foreground'
 }
 
@@ -101,10 +100,17 @@ export default function HistoryRoundBreakdown({ rounds, players }: Props) {
                               'rounded-lg border px-2 py-0.5 text-xs font-semibold',
                               m.modifierType === 'divide2'
                                 ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300'
+                                : m.modifierType === 'x2'
+                                ? 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300'
+                                : m.modifierType === 'plus'
+                                ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-300'
                                 : 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300'
                             )}
                           >
-                            {m.modifierType === 'divide2' ? '÷2' : `-${m.minusValue}`}
+                            {m.modifierType === 'divide2' ? '÷2'
+                              : m.modifierType === 'x2' ? '×2'
+                              : m.modifierType === 'plus' ? `+${m.value ?? m.minusValue ?? ''}`
+                              : `-${m.value ?? m.minusValue}`}
                           </span>
                         ))}
                       </div>

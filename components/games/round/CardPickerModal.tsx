@@ -2,7 +2,12 @@
 
 import { useState } from 'react'
 import type { Card } from '@/types/card.types'
-import { ACTION_CARD_LABELS, ACTION_CARD_COLORS, MODIFIER_CARD_COLORS, SPECIAL_NUMBER_COLORS, SPECIAL_NUMBER_LABELS } from '@/lib/gameConstants'
+import {
+  ACTION_CARD_LABELS, ACTION_CARD_COLORS,
+  MODIFIER_CARD_LABELS, MODIFIER_CARD_COLORS,
+  SPECIAL_NUMBER_COLORS, SPECIAL_NUMBER_LABELS,
+} from '@/lib/gameConstants'
+import type { ClassicActionType, RevengeActionType } from '@/types/card.types'
 
 interface CardPickerModalProps {
   playerName: string
@@ -18,7 +23,11 @@ interface CardPickerModalProps {
 const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
 // Revenge: 7 és 13 normál számkártyaként is előfordul
 const REVENGE_NUMBERS  = [1,2,3,4,5,6,7,8,9,10,11,12,13]
-const MINUS_VALUES = [2, 4, 6, 8, 10] as const
+const MINUS_VALUES  = [2, 4, 6, 8, 10] as const
+const PLUS_VALUES   = [5, 10, 15] as const
+
+const CLASSIC_ACTIONS:  ClassicActionType[]  = ['freeze', 'flip_three', 'second_chance']
+const REVENGE_ACTIONS:  RevengeActionType[]  = ['just_one_more', 'swap', 'steal', 'discard', 'flip_four']
 
 type Tab = 'numbers' | 'special' | 'direct'
 
@@ -195,7 +204,7 @@ export default function CardPickerModal({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Akciókártyák</p>
                 <div className="flex flex-col gap-2">
-                  {(['just_one_more', 'swap', 'steal', 'discard', 'flip_four'] as const).map((at) => (
+                  {(gameMode === 'classic' ? CLASSIC_ACTIONS : REVENGE_ACTIONS).map((at) => (
                     <button
                       key={at}
                       onClick={() => onPick({ cardType: 'action', actionType: at })}
@@ -213,23 +222,43 @@ export default function CardPickerModal({
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Módosítókártyák</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => onPick({ cardType: 'modifier', modifierType: 'divide2' })}
-                    className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.divide2}`}
-                  >
-                    ÷2
-                  </button>
-                  {MINUS_VALUES.map((v) => (
+                {gameMode === 'classic' ? (
+                  <div className="grid grid-cols-3 gap-2">
                     <button
-                      key={v}
-                      onClick={() => onPick({ cardType: 'modifier', modifierType: 'minus', minusValue: v })}
-                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.minus}`}
+                      onClick={() => onPick({ cardType: 'modifier', modifierType: 'x2' })}
+                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.x2}`}
                     >
-                      -{v}
+                      {MODIFIER_CARD_LABELS.x2}
                     </button>
-                  ))}
-                </div>
+                    {PLUS_VALUES.map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => onPick({ cardType: 'modifier', modifierType: 'plus', value: v })}
+                        className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.plus}`}
+                      >
+                        +{v}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => onPick({ cardType: 'modifier', modifierType: 'divide2' })}
+                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.divide2}`}
+                    >
+                      {MODIFIER_CARD_LABELS.divide2}
+                    </button>
+                    {MINUS_VALUES.map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => onPick({ cardType: 'modifier', modifierType: 'minus', value: v })}
+                        className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.minus}`}
+                      >
+                        -{v}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
