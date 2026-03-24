@@ -31,7 +31,7 @@ export const GAME_MODE_META: Record<GameMode, GameModeMeta> = {
     label:       'Classic',
     description: 'Cél: 200 pont · Bust = 0 · Flip 7: +15',
     colorClass:  'blue',
-    available:   false, // F3 után lesz true
+    available:   true,
   },
   revenge: {
     mode:        'revenge',
@@ -45,7 +45,7 @@ export const GAME_MODE_META: Record<GameMode, GameModeMeta> = {
     label:       'Brutal',
     description: 'Cél: 150 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: ±20',
     colorClass:  'orange',
-    available:   false, // F5 után lesz true
+    available:   true,
   },
 }
 

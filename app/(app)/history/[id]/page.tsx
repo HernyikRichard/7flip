@@ -10,7 +10,7 @@ import HistoryScoreChart from '@/components/history/HistoryScoreChart'
 import HistoryRoundBreakdown from '@/components/history/HistoryRoundBreakdown'
 import { toDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
-import { GAME_MODE_LABELS } from '@/lib/gameModes'
+import { GAME_MODE_META } from '@/lib/game-modes'
 
 export default function GameHistoryDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -55,11 +55,13 @@ export default function GameHistoryDetailPage() {
               </p>
               {game.gameMode && (
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  game.gameMode === 'revenge'
+                  game.gameMode === 'brutal'
+                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
+                    : game.gameMode === 'revenge'
                     ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
                     : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
                 }`}>
-                  {game.gameMode === 'revenge' ? '💀' : '🎯'} {GAME_MODE_LABELS[game.gameMode]}
+                  {GAME_MODE_META[game.gameMode ?? 'classic'].label}
                 </span>
               )}
             </div>

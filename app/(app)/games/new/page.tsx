@@ -102,7 +102,7 @@ export default function NewGamePage() {
 
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Játékmód</h2>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
             {Object.values(GAME_MODE_META).filter((m) => m.available).map((meta) => (
               <button
                 key={meta.mode}
