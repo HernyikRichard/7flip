@@ -257,10 +257,22 @@ export default function GamePage() {
               )
             })}
 
-            {isInRound && user.uid === game.createdBy && (
-              <Button variant="secondary" fullWidth onClick={handleForceFinishRound} loading={busy}>
-                Kör lezárása (manuális)
-              </Button>
+            {isInRound && (
+              <div className="flex gap-2">
+                {/* Scan gomb — csak a saját sorhoz */}
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push(`/games/${id}/scan`)}
+                  className="flex-1"
+                >
+                  📷 Scan
+                </Button>
+                {user.uid === game.createdBy && (
+                  <Button variant="secondary" onClick={handleForceFinishRound} loading={busy} className="flex-1">
+                    Kör lezárása
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}

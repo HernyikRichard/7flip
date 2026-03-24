@@ -20,9 +20,9 @@ interface CardPickerModalProps {
 }
 
 // Classic: nincs normál 7 és 13 a paklibarban (csak speciális változatuk van)
-const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
-// Revenge: 7 és 13 normál számkártyaként is előfordul
-const REVENGE_NUMBERS  = [1,2,3,4,5,6,7,8,9,10,11,12,13]
+export const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
+// Revenge/Brutal: 7 és 13 normál számkártyaként is előfordul
+export const REVENGE_NUMBERS = [1,2,3,4,5,6,7,8,9,10,11,12,13]
 const MINUS_VALUES  = [2, 4, 6, 8, 10] as const
 const PLUS_VALUES   = [5, 10, 15] as const
 
