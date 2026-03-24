@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-alapú sötét mód Tailwind v4-ben (dark: utility-k a .dark class-ra reagálnak) */
+@variant dark (&:where(.dark, .dark *));
+
 /* =============================================
    7flip — Design Tokens
    ============================================= */
@@ -43,8 +46,9 @@
   --muted-foreground: #64748b;
 }
 
+/* Rendszer preferencia (JS betöltés előtti fallback, csak ha nincs .light override) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0f172a;
     --foreground: #f1f5f9;
     --surface: #1e293b;
@@ -53,6 +57,17 @@
     --muted: #1e293b;
     --muted-foreground: #94a3b8;
   }
+}
+
+/* JS-vezérelt sötét mód (.dark class a <html>-en) */
+html.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --surface: #1e293b;
+  --surface-elevated: #334155;
+  --border: #334155;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
 }
 
 /* =============================================

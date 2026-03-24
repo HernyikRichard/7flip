@@ -15,10 +15,13 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import ErrorMessage from '@/components/ui/ErrorMessage'
 import Spinner from '@/components/ui/Spinner'
+import { useTheme } from '@/hooks/useTheme'
+import type { Theme } from '@/components/layout/ThemeProvider'
 
 export default function ProfilePage() {
   const { user, profile, profileLoading } = useAuth()
   const { saving, error, success, saveProfile, checkUsername, clearStatus } = useProfile()
+  const { theme, setTheme } = useTheme()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -198,6 +201,32 @@ export default function ProfilePage() {
             Mentés
           </Button>
         </form>
+
+        {/* Megjelenés */}
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Megjelenés
+          </h2>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: 'light', label: '☀️ Világos' },
+              { value: 'system', label: '⚙️ Rendszer' },
+              { value: 'dark',  label: '🌙 Sötét' },
+            ] as { value: Theme; label: string }[]).map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setTheme(value)}
+                className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors active:scale-95 ${
+                  theme === value
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'border-border text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Kijelentkezés */}
         <div className="border-t border-border pt-4">
