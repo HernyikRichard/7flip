@@ -38,7 +38,7 @@ export function calculateRoundScore(
   // ── 3. Minus modifier-ek összege ────────────────────────────────────────
   const modifierPenalty = state.modifierCards
     .filter((m) => m.modifierType === 'minus')
-    .reduce((s, m) => s + (m.minusValue ?? 0), 0)
+    .reduce((s, m) => s + (m.value ?? m.minusValue ?? 0), 0)
 
   // ── 4. Base score ───────────────────────────────────────────────────────
   // Classic és Revenge: nem mehet 0 alá (kivéve Brutal Mode)
@@ -168,7 +168,12 @@ export function formatScoreBreakdown(b: ScoreBreakdown): string {
 
   const parts: string[] = []
   parts.push(`Számok: ${b.numberSum}`)
-  if (b.divide2Applied)    parts.push(`÷2 = ${b.halvedSum}`)
+  if (b.divide2Applied) {
+    parts.push(`÷2 = ${b.halvedSum}`)
+  } else if (b.halvedSum !== b.numberSum && b.halvedSum > 0) {
+    // Classic ×2 modifier: halvedSum stores the doubled value
+    parts.push(`×2 = ${b.halvedSum}`)
+  }
   if (b.modifierPenalty)   parts.push(`−${b.modifierPenalty}`)
   if (b.flip7Bonus)        parts.push(`🎉 Flip 7: +${b.flip7Bonus}`)
   parts.push(`= ${b.total} pont`)

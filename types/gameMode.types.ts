@@ -1,26 +1,70 @@
-export type GameMode = 'classic' | 'revenge'
+// ─────────────────────────────────────────────────────────────────────────────
+// JÁTÉKMÓD TÍPUSOK — Classic / Revenge / Brutal
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GameMode = 'classic' | 'revenge' | 'brutal'
+
+// ── Mód konfiguráció (runtime értékek a szabályokhoz) ─────────────────────
 
 export interface GameModeConfig {
   mode: GameMode
-  /** Célpontszám — Classic: 200, Revenge: 150 */
+  /** Célpontszám */
   targetScore: number
-  /** Flip 7 bónusz — Classic: 15, Revenge: 20 */
+  /** Flip 7 bónusz — Classic: 15, Revenge/Brutal: 20 */
   flip7Bonus: number
-  /** Bust büntetés maximuma — Classic: 0 (nincs), Revenge: 30 (max −30) */
+  /** Bust büntetés maximuma — Classic: 0 (nincs), Revenge: 30 (max −30), Brutal: 50 */
   maxBustPenalty: number
-  /**
-   * Brutal Mode: körpontszám mehet 0 alá.
-   * A modifierPenalty meghaladhatja a halvedSum-ot.
-   */
+  /** Körpontszám mehet 0 alá (Brutal) */
   allowNegativeScore: boolean
-  /**
-   * Brutal Mode: modifier kártya adható busted játékosnak is
-   * (a pontszámon nem változtat, de a napló tükrözi)
-   */
+  /** Modifier adható busted játékosnak is (Brutal) */
   brutalModifierOnBust: boolean
-  /**
-   * Brutal Mode: Flip 7-nél a játékos dönthet:
-   * +flip7Bonus magának, VAGY −flip7Bonus egy másik játékostól
-   */
+  /** Flip 7-nél büntethet is (Brutal) */
   brutalFlip7CanPunish: boolean
+}
+
+// ── Mód metaadatok (UI megjelenítéshez) ──────────────────────────────────
+
+export interface GameModeMeta {
+  mode: GameMode
+  label: string
+  description: string
+  /** Elsődleges szín token (Tailwind class prefix) */
+  colorClass: string
+  /** Elérhető-e a játék létrehozásakor */
+  available: boolean
+}
+
+// ── Motor interfész (F2-ben implementálva) ────────────────────────────────
+
+import type { Card } from './card.types'
+import type { RoundPlayerState, ScoreBreakdown, PendingAction } from './game.types'
+
+export interface GameModeEngine {
+  config: GameModeConfig
+
+  /**
+   * Körpontszám kiszámítása a kezünkből.
+   */
+  calculateScore(state: RoundPlayerState): ScoreBreakdown
+
+  /**
+   * Bust esetén járó (büntetés) pontszám.
+   */
+  calculateBustScore(state: RoundPlayerState): ScoreBreakdown
+
+  /**
+   * Megadja, hogy az adott lap hozzáadása bustot okozna-e.
+   */
+  wouldBust(card: Card, state: RoundPlayerState): boolean
+
+  /**
+   * Akciókártya feloldása — módosítja a játékosnál lévő állapotokat.
+   */
+  resolveAction(params: {
+    playerStates: Record<string, RoundPlayerState>
+    action: PendingAction
+  }): {
+    updatedStates: Record<string, RoundPlayerState>
+    nextPendingAction: PendingAction | null
+  }
 }

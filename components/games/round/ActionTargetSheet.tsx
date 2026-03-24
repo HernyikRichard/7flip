@@ -31,6 +31,16 @@ export default function ActionTargetSheet({ action, players, onSelect }: ActionT
               A kiválasztott játékos 4 extra lapot kap
             </p>
           )}
+          {action.actionType === 'flip_three' && (
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center mt-1">
+              A kiválasztott játékos 3 extra lapot kap
+            </p>
+          )}
+          {action.actionType === 'freeze' && (
+            <p className="text-xs text-cyan-600 dark:text-cyan-400 text-center mt-1">
+              A kiválasztott játékos egy körig nem húzhat
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

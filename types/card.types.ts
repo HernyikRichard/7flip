@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KÁRTYA TÍPUSOK — Flip 7: With a Vengeance
+// KÁRTYA TÍPUSOK — 7flip: Classic / Revenge / Brutal
 // Discriminated union, Firestore-kompatibilis (plain object, nincs method).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -12,7 +12,7 @@ export interface NumberCard {
   cardType: 'number'
   variant: NumberCardVariant
   /**
-   * - normal: 1–12
+   * - normal: Classic: 1–12 (nincs 7/13); Revenge/Brutal: 1–13
    * - zero: 0 (The Zero)
    * - unlucky7: 7 (Unlucky 7)
    * - lucky13: 13 (Lucky 13)
@@ -22,12 +22,21 @@ export interface NumberCard {
 
 // ── Akciókártyák ───────────────────────────────────────────────────────────
 
-export type ActionType =
+/** Classic módban elérhető akciók */
+export type ClassicActionType =
+  | 'freeze'         // célpont egy körig nem húzhat (frozen státusz)
+  | 'flip_three'     // célpont kap 3 lapot egyenként
+  | 'second_chance'  // bust helyett a játékos megmarad (ha van nála second chance)
+
+/** Revenge / Brutal módban elérhető akciók */
+export type RevengeActionType =
   | 'just_one_more'  // célpont kap 1 lapot, majd stayed lesz
   | 'swap'           // két face-up lap cseréje (bustot okozhat)
   | 'steal'          // egy face-up lap elvétele a saját kézhez
   | 'discard'        // célpont egy lapját eldobja a kijátszó döntése alapján
   | 'flip_four'      // célpont kap 4 lapot egyenként
+
+export type ActionType = ClassicActionType | RevengeActionType
 
 export interface ActionCard {
   cardType: 'action'
@@ -36,12 +45,31 @@ export interface ActionCard {
 
 // ── Módosítókártyák ────────────────────────────────────────────────────────
 
-export type ModifierType = 'divide2' | 'minus'
+/** Classic módban elérhető módosítók */
+export type ClassicModifierType =
+  | 'x2'    // körpontszám megduplázódik (Flip 7 esetén is)
+  | 'plus'  // fix bónusz hozzáadva (klasszikus pakli szerint)
+
+/** Revenge / Brutal módban elérhető módosítók */
+export type RevengeModifierType =
+  | 'divide2'  // körpontszám felezve (lefelé kerekítve)
+  | 'minus'    // fix büntetés levonva
+
+export type ModifierType = ClassicModifierType | RevengeModifierType
 
 export interface ModifierCard {
   cardType: 'modifier'
   modifierType: ModifierType
-  /** Csak 'minus' típusnál: 2 | 4 | 6 | 8 | 10 */
+  /**
+   * Revenge/Brutal 'minus': 2 | 4 | 6 | 8 | 10
+   * Classic 'plus': a bónusz értéke
+   * Classic 'x2' / Revenge 'divide2': undefined (nincs értéke)
+   */
+  value?: number
+  /**
+   * @deprecated Használd a `value` mezőt helyette.
+   * Backward compatibility: régi Firestore dokumentumokban 'minus' modifier-nél.
+   */
   minusValue?: number
 }
 
@@ -68,6 +96,7 @@ export const isActionCard    = (c: Card): c is ActionCard   => c.cardType === 'a
 export const isModifierCard  = (c: Card): c is ModifierCard => c.cardType === 'modifier'
 export const isSpecialNumber = (c: Card): c is NumberCard =>
   c.cardType === 'number' && c.variant !== 'normal'
+
 /** The Zero (value = 0) */
 export const isZeroCard  = (c: Card): c is NumberCard & { variant: 'zero' } =>
   c.cardType === 'number' && (c as NumberCard).variant === 'zero'
@@ -78,28 +107,90 @@ export const isUnlucky7  = (c: Card): c is NumberCard & { variant: 'unlucky7' } 
 export const isLucky13   = (c: Card): c is NumberCard & { variant: 'lucky13' } =>
   c.cardType === 'number' && (c as NumberCard).variant === 'lucky13'
 
-// ── Pakli definíció (referencia a scan / kártya-picker-hez) ───────────────
-// A pontos pakli-összetétel a fizikai játékhoz igazodik.
-// Ez a definíció a kártyaválasztó UI-hoz és a scan modulhoz szolgál.
+export const isClassicAction = (c: Card): c is ActionCard & { actionType: ClassicActionType } =>
+  c.cardType === 'action' &&
+  (['freeze', 'flip_three', 'second_chance'] as const).includes(
+    (c as ActionCard).actionType as ClassicActionType
+  )
 
-export const DECK_DEFINITION: Card[] = [
-  // Normál számkártyák (1–12, 4 db)
+export const isRevengeAction = (c: Card): c is ActionCard & { actionType: RevengeActionType } =>
+  c.cardType === 'action' &&
+  (['just_one_more', 'swap', 'steal', 'discard', 'flip_four'] as const).includes(
+    (c as ActionCard).actionType as RevengeActionType
+  )
+
+export const isClassicModifier = (c: Card): c is ModifierCard & { modifierType: ClassicModifierType } =>
+  c.cardType === 'modifier' &&
+  (['x2', 'plus'] as const).includes(
+    (c as ModifierCard).modifierType as ClassicModifierType
+  )
+
+export const isRevengeModifier = (c: Card): c is ModifierCard & { modifierType: RevengeModifierType } =>
+  c.cardType === 'modifier' &&
+  (['divide2', 'minus'] as const).includes(
+    (c as ModifierCard).modifierType as RevengeModifierType
+  )
+
+/**
+ * Visszaadja a modifier effektív értékét.
+ * Backward-kompatibilis: `value ?? minusValue`.
+ */
+export function getModifierValue(m: ModifierCard): number | undefined {
+  return m.value ?? m.minusValue
+}
+
+// ── Pakli definíciók ──────────────────────────────────────────────────────
+
+/** Revenge / Brutal pakli definíció */
+export const REVENGE_DECK: Card[] = [
+  // Normál számkártyák (1–13, kivéve 7 és 13 speciálisak is vannak)
   ...[1,2,3,4,5,6,8,9,10,11,12].flatMap((v) =>
     Array(4).fill({ cardType: 'number', variant: 'normal', value: v } as NumberCard)
   ),
-  // Speciális számkártyák (4 db mindegyikből)
+  // 7 normál + Unlucky 7
+  ...Array(2).fill({ cardType: 'number', variant: 'normal',   value: 7  } as NumberCard),
+  ...Array(2).fill({ cardType: 'number', variant: 'unlucky7', value: 7  } as NumberCard),
+  // 13 normál + Lucky 13
+  ...Array(2).fill({ cardType: 'number', variant: 'normal',   value: 13 } as NumberCard),
+  ...Array(2).fill({ cardType: 'number', variant: 'lucky13',  value: 13 } as NumberCard),
+  // The Zero
   ...Array(4).fill({ cardType: 'number', variant: 'zero',     value: 0  } as NumberCard),
-  ...Array(4).fill({ cardType: 'number', variant: 'unlucky7', value: 7  } as NumberCard),
-  ...Array(4).fill({ cardType: 'number', variant: 'lucky13',  value: 13 } as NumberCard),
-  // Akciókártyák
+  // Akciókártyák (Revenge/Brutal)
   ...Array(6).fill({ cardType: 'action', actionType: 'just_one_more' } as ActionCard),
   ...Array(4).fill({ cardType: 'action', actionType: 'swap'          } as ActionCard),
   ...Array(4).fill({ cardType: 'action', actionType: 'steal'         } as ActionCard),
   ...Array(4).fill({ cardType: 'action', actionType: 'discard'       } as ActionCard),
   ...Array(4).fill({ cardType: 'action', actionType: 'flip_four'     } as ActionCard),
-  // Módosítókártyák
+  // Módosítókártyák (Revenge/Brutal)
   ...Array(3).fill({ cardType: 'modifier', modifierType: 'divide2' } as ModifierCard),
   ...([2, 4, 6, 8, 10] as const).flatMap((v) =>
-    Array(3).fill({ cardType: 'modifier', modifierType: 'minus', minusValue: v } as ModifierCard)
+    Array(3).fill({ cardType: 'modifier', modifierType: 'minus', value: v } as ModifierCard)
   ),
 ]
+
+/** Classic pakli definíció (TODO: F3 után pontosítandó) */
+export const CLASSIC_DECK: Card[] = [
+  // Normál számkártyák (1–12, nincs normál 7/13)
+  ...[1,2,3,4,5,6,8,9,10,11,12].flatMap((v) =>
+    Array(4).fill({ cardType: 'number', variant: 'normal', value: v } as NumberCard)
+  ),
+  // Speciális számkártyák
+  ...Array(4).fill({ cardType: 'number', variant: 'zero',     value: 0  } as NumberCard),
+  ...Array(4).fill({ cardType: 'number', variant: 'unlucky7', value: 7  } as NumberCard),
+  ...Array(4).fill({ cardType: 'number', variant: 'lucky13',  value: 13 } as NumberCard),
+  // Akciókártyák (Classic — TODO: F3 után pontosítandó)
+  ...Array(4).fill({ cardType: 'action', actionType: 'freeze'        } as ActionCard),
+  ...Array(4).fill({ cardType: 'action', actionType: 'flip_three'    } as ActionCard),
+  ...Array(2).fill({ cardType: 'action', actionType: 'second_chance' } as ActionCard),
+  // Módosítókártyák (Classic — TODO: F3 után pontosítandó)
+  ...Array(4).fill({ cardType: 'modifier', modifierType: 'x2'                   } as ModifierCard),
+  ...([5, 10, 15] as const).flatMap((v) =>
+    Array(2).fill({ cardType: 'modifier', modifierType: 'plus', value: v } as ModifierCard)
+  ),
+]
+
+/**
+ * @deprecated Használd a REVENGE_DECK-et helyette.
+ * Backward compatibility alias.
+ */
+export const DECK_DEFINITION = REVENGE_DECK

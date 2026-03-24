@@ -23,6 +23,7 @@ const STATUS_ROW_COLORS: Record<string, string> = {
   stayed:  'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30',
   busted:  'border-red-300 bg-red-50 dark:bg-red-950/30',
   flip7:   'border-amber-300 bg-amber-50 dark:bg-amber-950/30',
+  frozen:  'border-cyan-300 bg-cyan-50 dark:bg-cyan-950/30',
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -30,6 +31,7 @@ const STATUS_ICONS: Record<string, string> = {
   stayed:  '✋',
   busted:  '💥',
   flip7:   '🎉',
+  frozen:  '❄️',
 }
 
 export default function PlayerRoundRow({
@@ -105,7 +107,10 @@ export default function PlayerRoundRow({
                 shadow-sm
               `}
             >
-              {m.modifierType === 'divide2' ? '÷2' : `-${m.minusValue}`}
+              {m.modifierType === 'divide2' ? '÷2'
+              : m.modifierType === 'x2' ? '×2'
+              : m.modifierType === 'plus' ? `+${m.value ?? m.minusValue ?? ''}`
+              : `-${m.value ?? m.minusValue}`}
             </span>
           ))}
         </div>
@@ -117,6 +122,11 @@ export default function PlayerRoundRow({
           {[
             state.scoreBreakdown.numberSum > 0 && `Számok: ${state.scoreBreakdown.numberSum}`,
             state.scoreBreakdown.divide2Applied && `÷2 = ${state.scoreBreakdown.halvedSum}`,
+            // classic: halvedSum shows x2-multiplied value when no divide2 but modifier changed the sum
+            !state.scoreBreakdown.divide2Applied &&
+              state.scoreBreakdown.halvedSum !== state.scoreBreakdown.numberSum &&
+              state.scoreBreakdown.halvedSum > 0 &&
+              `×2 = ${state.scoreBreakdown.halvedSum}`,
             state.scoreBreakdown.modifierPenalty > 0 && `-${state.scoreBreakdown.modifierPenalty}`,
             state.scoreBreakdown.flip7Bonus > 0 && `🎉 Flip 7: +${state.scoreBreakdown.flip7Bonus}`,
           ].filter(Boolean).join('  ·  ')}
