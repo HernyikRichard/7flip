@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { registerWithEmail } from '@/services/auth.service'
 import { getAuthErrorMessage } from '@/lib/firebase/errors'
+import { useAuth } from '@/hooks/useAuth'
 import { ROUTES } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -27,6 +28,13 @@ export default function RegisterForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace(ROUTES.DASHBOARD)
+    }
+  }, [user, authLoading, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
