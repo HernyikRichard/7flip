@@ -1,40 +1,70 @@
 import { Timestamp } from 'firebase/firestore'
-import type { Card, ModifierCard } from './card.types'
+import type { Card, HandCard, ModifierCard, ActionType } from './card.types'
+import type { GameMode } from './gameMode.types'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GAME STATE MACHINE ÁLLAPOTOK
+// GAME STATUS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type GameStatus =
-  | 'waiting_for_players'   // játék létrehozva, még nem indult
-  | 'in_round'              // kör folyamatban
-  | 'awaiting_action'       // akciókártya kijátszva, target választás folyamatban
-  | 'round_finished'        // kör pontozva, eredmény megjelenítve
-  | 'game_finished'         // valaki elérte a 200 pontot
+  | 'waiting_for_players'  // játék létrehozva, várjuk a játékosokat
+  | 'in_round'             // kör folyamatban
+  | 'awaiting_action'      // akciókártya kijátszva, resolution folyamatban
+  | 'round_finished'       // kör pontozva, eredmény megjelenítve
+  | 'game_finished'        // valaki elérte a targetScore-t
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER ÁLLAPOT EGY KÖRBEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type RoundPlayerStatus =
-  | 'active'         // húzhat lapot
-  | 'standing'       // megállt, nem kap több lapot (opcionális szabály)
-  | 'busted'         // duplikát számkártya → 0 pont
-  | 'frozen'         // Freeze akció érte → kiesett e körből
-  | 'flip7'          // 7 különböző számkártyát gyűjtött → bónusz
+  | 'active'   // húzhat, vagy megállhat
+  | 'stayed'   // megállt — de action cardokat még fogadhat!
+  | 'busted'   // duplikát szám → kiesett (vagy Lucky 13 harmadszor)
+  | 'flip7'    // 7 különböző számkártyát összegyűjtött → kör vége trigger
 
 export interface RoundPlayerState {
   uid: string
   status: RoundPlayerStatus
-  /** Egyedi számkártyák értékei — max 7, duplikát = bust */
+
+  /**
+   * Az összes face-up lap a játékos előtt, húzás sorrendben.
+   * Ez a SOURCE OF TRUTH — a numberCards és modifierCards ebből van deriválva.
+   * A Swap/Steal/Discard handCardIndex alapján hivatkozik ide.
+   */
+  handCards: HandCard[]
+
+  /** Derivált: csak a számkártya értékek, gyors bust-check-hez */
   numberCards: number[]
-  /** Módosítók (x2, plus) a körből */
-  modifiers: ModifierCard[]
-  /** Van-e Second Chance lapja még felhasználatlanul */
-  hasSecondChance: boolean
-  /** Kör végén kiszámolt pontszám (null = még nem pontozva) */
+
+  /** Derivált: csak a modifier lapok, pontozáshoz */
+  modifierCards: ModifierCard[]
+
+  // ── Speciális állapotflagek ─────────────────────────────────────────────
+
+  /**
+   * The Zero a kezében van.
+   * Ha true és a játékos NEM ér el Flip 7-et: körpontszám 0 lesz.
+   */
+  zeroLocked: boolean
+
+  /**
+   * The Zero miatt kötelező húzás a saját körben.
+   * Stay tiltott, amíg ez true. Húzás után false lesz.
+   */
+  forcedHit: boolean
+
+  /**
+   * Hány Lucky 13-asa van (0, 1 vagy 2).
+   * Harmadik 13-asnál bust.
+   */
+  lucky13Count: number
+
+  // ── Kör végi pontszám ──────────────────────────────────────────────────
+
+  /** null = még nem pontozva */
   roundScore: number | null
-  /** Részletes pontszám breakdown (null = még nem pontozva) */
+  /** null = még nem pontozva */
   scoreBreakdown: ScoreBreakdown | null
 }
 
@@ -43,35 +73,88 @@ export interface RoundPlayerState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ScoreBreakdown {
-  /** Számkártyák összege */
+  /** Számkártyák összege (Lucky 13 × db is beleszámít) */
   numberSum: number
-  /** x2 módosító volt-e */
-  x2Applied: boolean
-  /** Számkártyák összege x2 után (ha x2 nincs, == numberSum) */
-  doubledSum: number
-  /** Plus módosítók összege */
-  modifierBonus: number
-  /** Flip 7 bónusz: +15 ha 7 különböző szám, egyébként 0 */
+  /** Volt-e ÷2 modifier */
+  divide2Applied: boolean
+  /** numberSum / 2 (lefelé kerekítve) ha volt ÷2, egyébként == numberSum */
+  halvedSum: number
+  /** Minus modifier-ek összege (pozitív szám — pl. 4 + 6 = 10) */
+  modifierPenalty: number
+  /**
+   * halvedSum - modifierPenalty
+   * Classic: min 0; Brutal Mode: lehet negatív
+   */
+  baseScore: number
+  /** +15 (Classic) / +20 (Revenge) ha Flip 7, egyébként 0 */
   flip7Bonus: number
-  /** Végső pontszám = doubledSum + modifierBonus + flip7Bonus */
+  /** baseScore + flip7Bonus */
   total: number
-  /** Bustolt-e (ha igen, total == 0) */
+  /** true ha bust */
   busted: boolean
+  /**
+   * The Zero hatása — körpontszám 0 lesz (kivéve ha Flip 7).
+   * Ha true és NEM flip7: total = 0.
+   */
+  forcedZero: boolean
+  /**
+   * Revenge módban: negatív büntetés értéke (pl. -15).
+   * Classic módban: undefined.
+   */
+  bustPenalty?: number
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AKCIÓKÁRTYA FÜGGŐ DÖNTÉS
+// KÁRTYA REFERENCIA — handCards[index] azonosítója
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CardRef {
+  ownerUid: string
+  handCardIndex: number
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FÜGGŐ AKCIÓ — action card kijátszva, resolution folyamatban
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PendingAction {
-  /** Melyik játékos húzta az akciókártyát */
+  /** UUID — Firestore-kompatibilis, az action resolution azonosítója */
+  id: string
+  actionType: ActionType
   playedByUid: string
-  /** Az akciókártya típusa */
-  actionType: 'freeze' | 'flip_three' | 'second_chance'
-  /** Lehetséges célpontok (aktív játékosok uid-jai) */
-  availableTargets: string[]
-  /** Megadott célpont (null = még nem döntött) */
+
+  // ── Játékos célpont (Just One More, Flip Four, Discard, Swap, Steal) ──────
+  requiresTargetPlayer: boolean
+  /** Választható célpont uid-ok (nem busted, és a szabályok alapján) */
+  availableTargetUids: string[]
   resolvedTargetUid: string | null
+
+  // ── Kártya célpont ─────────────────────────────────────────────────────
+  /** Swap: forrás kártyát is ki kell választani */
+  requiresSourceCard: boolean
+  /** Swap, Steal, Discard: cél kártyát ki kell választani */
+  requiresTargetCard: boolean
+  /** Face-up lapok, amelyek célozhatók */
+  availableCards: CardRef[]
+  /** Swap: melyik lapját adja (forrás) */
+  resolvedSourceCard: CardRef | null
+  /** Swap cél / Steal / Discard: melyik lapot érinti */
+  resolvedTargetCard: CardRef | null
+
+  // ── Flip Four sorozat ──────────────────────────────────────────────────
+  /**
+   * Flip Four: hány lap van még hátra (4 → 3 → 2 → 1 → 0).
+   * null ha nem flip_four akció.
+   */
+  flipFourRemaining: number | null
+  /**
+   * Flip Four közben húzott action/modifier lapok sora.
+   * A sorozat végén (ha nincs bust) ezeket kell sorban feloldani.
+   */
+  flipFourCardQueue: Card[]
+
+  /** A service layer állítja be Firestore serverTimestamp()-mal */
+  createdAt?: Timestamp
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,29 +165,26 @@ export interface Round {
   id: string
   roundNumber: number
   status: 'active' | 'finished'
-  /** Játékos állapotok a körben — uid → RoundPlayerState */
+  /** Játékos állapotok — uid → RoundPlayerState */
   playerStates: Record<string, RoundPlayerState>
-  /** Aktuálisan függő akciókártya döntés (null ha nincs) */
   pendingAction: PendingAction | null
-  /** Kör elején a húzási sorrend */
+  /** Körön belüli húzási sorrend */
   turnOrder: string[]
   createdAt: Timestamp
   finishedAt: Timestamp | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JÁTÉKOS A JÁTÉKBAN (nem körben, hanem játék szinten)
+// JÁTÉKOS (játék szinten, nem körben)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GamePlayer {
   uid: string
   displayName: string
   photoURL: string | null
-  /** Kumulatív pontszám az összes lejátszott körből */
+  /** Kumulatív pontszám az összes befejezett körből */
   totalScore: number
-  /** Lejátszott körök száma */
   roundsPlayed: number
-  /** Meghívás elfogadási állapota */
   inviteStatus: 'pending' | 'accepted' | 'declined'
 }
 
@@ -116,47 +196,71 @@ export interface Game {
   id: string
   createdBy: string
   status: GameStatus
+  /** Játékmód — Classic vagy Revenge */
+  gameMode: GameMode
+  /**
+   * Brutal Mode: score mehet negatívba, modifier adható busted-nek,
+   * Flip 7-nél dönthet: +15 magának vagy −15 másnak.
+   */
+  brutalMode: boolean
   players: GamePlayer[]
   playerUids: string[]
-  /** Hány kör ment le eddig */
   roundCount: number
-  /** Célpontszám (alapértelmezett: 200) */
+  /** Classic: 200, Revenge: 150 */
   targetScore: number
-  /** Aktuális függő akció körben (denormalizált a gyors UI-hoz) */
+  /** Denormalizált a gyors UI-hoz */
   pendingAction: PendingAction | null
+  currentRoundId: string | null
   createdAt: Timestamp
   finishedAt: Timestamp | null
   winnerId: string | null
 }
 
-export type CreateGameData = Pick<Game, 'players' | 'playerUids' | 'targetScore'> & {
+export type CreateGameData = {
   createdBy: string
+  players: GamePlayer[]
+  playerUids: string[]
+  gameMode: GameMode
+  brutalMode: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ESEMÉNYNAPLÓ — egy körön belüli lépések időrendben
+// ESEMÉNYNAPLÓ TÍPUSOK (rounds/{id}/events subcollection)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type GameEventType =
   | 'round_started'
-  | 'card_drawn'           // játékos kap egy lapot
-  | 'player_busted'        // duplikát szám → bust
-  | 'second_chance_used'   // second chance felhasználva bust ellen
-  | 'action_card_played'   // akciókártya kijátszva (target megnevezve)
-  | 'player_frozen'        // freeze hatása
-  | 'flip_three_resolved'  // flip three 3 lapja ki lett osztva
-  | 'player_flip7'         // 7 különböző szám megvan
-  | 'round_scored'         // kör pontozva
+  | 'card_drawn'
+  | 'number_added'
+  | 'special_zero_applied'      // The Zero a kézbe kerül
+  | 'special_unlucky7_reset'    // Unlucky 7 → lapok eldobva
+  | 'special_lucky13_ok'        // Lucky 13 második példánya engedélyezve
+  | 'player_busted'
+  | 'player_flip7'              // 7 különböző szám — kör vége
+  | 'modifier_added'
+  | 'action_card_played'        // action kijátszva, célpont választás indult
+  | 'action_resolved'           // action teljesen feloldva
+  | 'just_one_more_dealt'
+  | 'swap_executed'
+  | 'steal_executed'
+  | 'discard_executed'
+  | 'flip_four_card_dealt'      // flip four 1 lapja
+  | 'flip_four_queue_resolved'  // flip four utáni action/modifier queue feloldva
+  | 'flip_four_complete'
+  | 'player_stayed'
+  | 'round_scored'
   | 'round_ended'
   | 'game_ended'
 
 export interface GameEvent {
   id: string
   eventType: GameEventType
-  actorUid: string | null      // ki váltotta ki (null = rendszer)
-  targetUid: string | null     // kire vonatkozik
-  card: Card | null            // melyik kártya érintett
-  payload: Record<string, unknown> // extra adat (pl. scoreBreakdown)
+  actorUid: string | null
+  targetUid: string | null
+  card: Card | null
+  sourceCard: CardRef | null
+  targetCard: CardRef | null
+  payload: Record<string, unknown>
   createdAt: Timestamp
 }
 
@@ -167,7 +271,7 @@ export interface GameEvent {
 export interface GameResult {
   gameId: string
   winnerId: string
-  finalScores: Record<string, number>  // uid → totalScore
+  finalScores: Record<string, number>
   totalRounds: number
   finishedAt: Timestamp
 }

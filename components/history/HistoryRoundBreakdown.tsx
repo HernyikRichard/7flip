@@ -14,7 +14,7 @@ interface Props {
 }
 
 function statusStyle(status: string): string {
-  if (status === 'busted' || status === 'frozen')
+  if (status === 'busted')
     return 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
   if (status === 'flip7')
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
@@ -84,9 +84,9 @@ export default function HistoryRoundBreakdown({ rounds, players }: Props) {
                     </div>
 
                     {/* Kártyák */}
-                    {(state.numberCards.length > 0 || state.modifiers.length > 0) && (
+                    {((state.numberCards?.length ?? 0) > 0 || (state.modifierCards?.length ?? 0) > 0) && (
                       <div className="flex flex-wrap gap-1.5">
-                        {state.numberCards.map((n, i) => (
+                        {(state.numberCards ?? []).map((n, i) => (
                           <span
                             key={i}
                             className="rounded-lg border border-border bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground"
@@ -94,17 +94,17 @@ export default function HistoryRoundBreakdown({ rounds, players }: Props) {
                             {n}
                           </span>
                         ))}
-                        {state.modifiers.map((m: ModifierCard, i) => (
+                        {(state.modifierCards ?? []).map((m: ModifierCard, i) => (
                           <span
                             key={i}
                             className={cn(
                               'rounded-lg border px-2 py-0.5 text-xs font-semibold',
-                              m.modifierType === 'x2'
+                              m.modifierType === 'divide2'
                                 ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:text-purple-300'
                                 : 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300'
                             )}
                           >
-                            {m.modifierType === 'x2' ? '×2' : `+${m.plusValue}`}
+                            {m.modifierType === 'divide2' ? '÷2' : `-${m.minusValue}`}
                           </span>
                         ))}
                       </div>

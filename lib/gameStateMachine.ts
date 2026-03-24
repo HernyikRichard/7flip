@@ -1,189 +1,304 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// GAME STATE MACHINE — Flip 7: With a Vengeance
+// Tiszta függvények, mellékhatás nélkül.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import type {
   RoundPlayerState,
-  RoundPlayerStatus,
   PendingAction,
-  Round,
+  CardRef,
 } from '@/types/game.types'
-import type { Card } from '@/types/card.types'
-import { isNumberCard, isActionCard, isModifierCard } from '@/types/card.types'
-import { wouldBust, isFlip7Achieved, calculateRoundScore } from './scoreEngine'
+import type { Card, NumberCard, ModifierCard, HandCard } from '@/types/card.types'
+import {
+  isNumberCard, isActionCard, isModifierCard,
+  isUnlucky7, isZeroCard, isLucky13,
+} from '@/types/card.types'
+import { wouldBust, isFlip7Achieved, calculateRoundScore, calculateBustScore } from './scoreEngine'
+import type { GameModeConfig } from '@/types/gameMode.types'
+import { CLASSIC_MODE_CONFIG } from './gameModes'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HÚZÁS EREDMÉNYE — a service layer ezt kapja vissza, ez alapján ír Firestore-ba
+// HÚZÁS EREDMÉNYE
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type DrawResult =
   | { outcome: 'number_added';    updatedState: RoundPlayerState }
+  | { outcome: 'zero_added';      updatedState: RoundPlayerState }  // The Zero
+  | { outcome: 'unlucky7_reset';  updatedState: RoundPlayerState; droppedCards: Card[] }
+  | { outcome: 'lucky13_ok';      updatedState: RoundPlayerState }  // 2. Lucky 13
   | { outcome: 'busted';          updatedState: RoundPlayerState }
-  | { outcome: 'second_chance';   updatedState: RoundPlayerState }
   | { outcome: 'flip7';           updatedState: RoundPlayerState }
   | { outcome: 'modifier_added';  updatedState: RoundPlayerState }
   | { outcome: 'action_pending';  pendingAction: PendingAction; updatedState: RoundPlayerState }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAP KIOSZTÁSA EGY JÁTÉKOSNAK
-// Ez a fő állapot-átmenet függvény — tiszta, mellékhatás mentes.
+// HELPER: handCards → numberCards + modifierCards szinkron
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function rebuildCardLists(state: RoundPlayerState): RoundPlayerState {
+  const numberCards: number[] = []
+  const modifierCards: ModifierCard[] = []
+
+  for (const h of state.handCards) {
+    if (isNumberCard(h.card))   numberCards.push((h.card as NumberCard).value)
+    if (isModifierCard(h.card)) modifierCards.push(h.card as ModifierCard)
+  }
+
+  const lucky13Count = numberCards.filter((v) => v === 13).length
+  const zeroLocked   = numberCards.includes(0)
+
+  return { ...state, numberCards, modifierCards, lucky13Count, zeroLocked }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LAP KIOSZTÁSA EGY JÁTÉKOSNAK — fő állapot-átmenet
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function applyCardToPlayer(
   card: Card,
   playerState: RoundPlayerState,
-  activePlayerUids: string[]
+  allPlayerStates: Record<string, RoundPlayerState>,
+  roundNumber: number,
+  config: GameModeConfig = CLASSIC_MODE_CONFIG
 ): DrawResult {
-  // Frozen / busted játékos nem kaphat lapot
-  if (playerState.status === 'frozen' || playerState.status === 'busted') {
+  // Busted játékos nem kaphat lapot (Brutal Mode: modifier igen, de azt a service kezeli)
+  if (playerState.status === 'busted') {
     return { outcome: 'number_added', updatedState: playerState }
   }
 
-  // ── SZÁMKÁRTYA ──────────────────────────────────────────────────────────────
+  const handCard: HandCard = { card, drawnInRound: roundNumber }
+
+  // ── SZÁMKÁRTYA ────────────────────────────────────────────────────────────
   if (isNumberCard(card)) {
-    const isDuplicate = wouldBust(playerState.numberCards, card.value)
 
-    if (isDuplicate) {
-      // Van Second Chance?
-      if (playerState.hasSecondChance) {
-        // SC felhasználva: nem bustol, de a lapot sem kapja meg
-        const updated: RoundPlayerState = {
-          ...playerState,
-          hasSecondChance: false,
-          // Státusz marad 'active' — a következő körben kap lapot
-        }
-        return { outcome: 'second_chance', updatedState: updated }
-      }
+    // ── Unlucky 7: lapok eldobása, csak a 7 marad ───────────────────────
+    if (isUnlucky7(card)) {
+      const droppedCards = playerState.handCards.map((h) => h.card)
+      const updated = rebuildCardLists({
+        ...playerState,
+        handCards:    [handCard],
+        numberCards:  [7],
+        modifierCards: [],
+        lucky13Count: 0,
+        zeroLocked:   false,
+        forcedHit:    false,
+      })
+      return { outcome: 'unlucky7_reset', updatedState: updated, droppedCards }
+    }
 
-      // Bust
+    // ── Bust ellenőrzés ────────────────────────────────────────────────
+    if (wouldBust(playerState, card.value)) {
+      const bustBreakdown = calculateBustScore(playerState, config)
       const updated: RoundPlayerState = {
         ...playerState,
-        status: 'busted',
-        roundScore: 0,
-        scoreBreakdown: { numberSum:0, x2Applied:false, doubledSum:0, modifierBonus:0, flip7Bonus:0, total:0, busted:true },
+        status:         'busted',
+        roundScore:     bustBreakdown.total,
+        scoreBreakdown: bustBreakdown,
       }
       return { outcome: 'busted', updatedState: updated }
     }
 
-    // Egyedi szám — hozzáadjuk
-    const newNumbers = [...playerState.numberCards, card.value]
-    const flip7 = isFlip7Achieved(newNumbers)
+    // ── The Zero ────────────────────────────────────────────────────────
+    if (isZeroCard(card)) {
+      const updated = rebuildCardLists({
+        ...playerState,
+        handCards:  [...playerState.handCards, handCard],
+        zeroLocked: true,
+        forcedHit:  false, // forcedHit: a KÖVETKEZŐ saját körig kell húzni
+        // (a service állítja be forcedHit=true az adott játékosra)
+      })
+      return { outcome: 'zero_added', updatedState: updated }
+    }
 
-    const updated: RoundPlayerState = {
-      ...playerState,
-      numberCards: newNumbers,
-      status: flip7 ? 'flip7' : 'active',
+    // ── Lucky 13 (2. példány) ────────────────────────────────────────────
+    if (isLucky13(card) && playerState.lucky13Count === 1) {
+      const updated = rebuildCardLists({
+        ...playerState,
+        handCards: [...playerState.handCards, handCard],
+      })
+      return { outcome: 'lucky13_ok', updatedState: updated }
     }
-    return {
-      outcome: flip7 ? 'flip7' : 'number_added',
-      updatedState: updated,
+
+    // ── Normál szám hozzáadása ───────────────────────────────────────────
+    const newHandCards = [...playerState.handCards, handCard]
+    const withCard     = rebuildCardLists({ ...playerState, handCards: newHandCards })
+
+    if (isFlip7Achieved(withCard.numberCards)) {
+      const flip7Breakdown = calculateRoundScore({ ...withCard, status: 'flip7' }, config)
+      const updated: RoundPlayerState = {
+        ...withCard,
+        status:         'flip7',
+        roundScore:     flip7Breakdown.total,
+        scoreBreakdown: flip7Breakdown,
+      }
+      return { outcome: 'flip7', updatedState: updated }
     }
+
+    return { outcome: 'number_added', updatedState: withCard }
   }
 
-  // ── MÓDOSÍTÓKÁRTYA ─────────────────────────────────────────────────────────
+  // ── MÓDOSÍTÓKÁRTYA ────────────────────────────────────────────────────────
   if (isModifierCard(card)) {
-    const updated: RoundPlayerState = {
+    const updated = rebuildCardLists({
       ...playerState,
-      modifiers: [...playerState.modifiers, card],
-    }
+      handCards: [...playerState.handCards, handCard],
+    })
     return { outcome: 'modifier_added', updatedState: updated }
   }
 
-  // ── AKCIÓKÁRTYA ────────────────────────────────────────────────────────────
+  // ── AKCIÓKÁRTYA ───────────────────────────────────────────────────────────
   if (isActionCard(card)) {
-    // Second Chance: a húzó játékosnál tárolódik (felhasználható bust ellen)
-    if (card.actionType === 'second_chance') {
-      const updated: RoundPlayerState = {
-        ...playerState,
-        hasSecondChance: true,
-      }
-      return { outcome: 'modifier_added', updatedState: updated }
+    // Aktív (nem busted) játékosok uid-jai
+    const nonBustedUids = Object.values(allPlayerStates)
+      .filter((s) => s.status !== 'busted')
+      .map((s) => s.uid)
+
+    // Ha csak egyetlen nem-busted játékos van: önmagára kell kijátszani
+    const availableTargetUids =
+      nonBustedUids.length === 1 ? [playerState.uid] : nonBustedUids
+
+    // Face-up kártyák (szám + modifier) az összes nem-busted játékostól
+    const availableCards: CardRef[] = []
+    for (const [uid, s] of Object.entries(allPlayerStates)) {
+      if (s.status === 'busted') continue
+      s.handCards.forEach((h, idx) => {
+        if (h.card.cardType === 'number' || h.card.cardType === 'modifier') {
+          availableCards.push({ ownerUid: uid, handCardIndex: idx })
+        }
+      })
     }
 
-    // Freeze / Flip Three: target választás szükséges
-    // Ha csak 1 aktív játékos van, ő maga a target
-    const availableTargets =
-      activePlayerUids.length === 1
-        ? [playerState.uid]
-        : activePlayerUids
+    const actionConfig = buildActionConfig(card.actionType, availableTargetUids, availableCards)
 
     const pending: PendingAction = {
-      playedByUid: playerState.uid,
+      id: crypto.randomUUID(),
       actionType: card.actionType,
-      availableTargets,
-      resolvedTargetUid: null,
+      playedByUid: playerState.uid,
+      ...actionConfig,
+      flipFourRemaining: card.actionType === 'flip_four' ? 4 : null,
+      flipFourCardQueue: [],
+      // createdAt: service layer állítja be serverTimestamp()-mal
     }
+
     return { outcome: 'action_pending', pendingAction: pending, updatedState: playerState }
   }
 
-  // Fallback — nem ismert kártya (ne forduljon elő)
+  // Fallback
   return { outcome: 'number_added', updatedState: playerState }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AKCIÓKÁRTYA FELOLDÁSA — miután a target ki lett választva
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Action config per típus ────────────────────────────────────────────────
 
-export function resolveAction(
-  action: PendingAction,
-  targetState: RoundPlayerState
-): RoundPlayerState {
-  switch (action.actionType) {
-    case 'freeze':
-      return { ...targetState, status: 'frozen' }
+function buildActionConfig(
+  actionType: import('@/types/card.types').ActionType,
+  availableTargetUids: string[],
+  availableCards: CardRef[]
+): Pick<
+  PendingAction,
+  | 'requiresTargetPlayer' | 'availableTargetUids' | 'resolvedTargetUid'
+  | 'requiresSourceCard' | 'requiresTargetCard' | 'availableCards'
+  | 'resolvedSourceCard' | 'resolvedTargetCard'
+> {
+  const base = {
+    requiresTargetPlayer: false,
+    availableTargetUids:  [] as string[],
+    resolvedTargetUid:    null,
+    requiresSourceCard:   false,
+    requiresTargetCard:   false,
+    availableCards:       [] as CardRef[],
+    resolvedSourceCard:   null,
+    resolvedTargetCard:   null,
+  }
 
-    case 'second_chance':
-      // Ezt már az applyCardToPlayer kezeli, ide nem kerülhet
-      return targetState
+  switch (actionType) {
+    case 'just_one_more':
+      return { ...base, requiresTargetPlayer: true, availableTargetUids }
 
-    case 'flip_three':
-      // A flip_three-t a service layer kezeli: 3 lapot húz és egyenként alkalmaz
-      // Ez az állapot nem változik az akció feloldásakor, a húzások változtatják
-      return targetState
+    case 'flip_four':
+      return { ...base, requiresTargetPlayer: true, availableTargetUids }
+
+    case 'swap':
+      // Két kártyát kell kiválasztani (forrás + cél) — nem játékost
+      return {
+        ...base,
+        requiresSourceCard: true,
+        requiresTargetCard: true,
+        availableCards,
+      }
+
+    case 'steal':
+      return { ...base, requiresTargetCard: true, availableCards }
+
+    case 'discard':
+      // Először a játékost, majd a játékos egyik lapját kell kiválasztani
+      return {
+        ...base,
+        requiresTargetPlayer: true,
+        availableTargetUids,
+        requiresTargetCard: true,
+        availableCards,
+      }
 
     default:
-      return targetState
+      return base
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AKTÍV JÁTÉKOSOK — kiesett (bust, frozen) nélkül
+// AKTÍV JÁTÉKOSOK (nem stayed, nem busted, nem flip7)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function getActivePlayers(playerStates: Record<string, RoundPlayerState>): string[] {
+export function getActivePlayers(
+  playerStates: Record<string, RoundPlayerState>
+): string[] {
   return Object.values(playerStates)
-    .filter((p) => p.status === 'active' || p.status === 'flip7')
+    .filter((p) => p.status === 'active')
     .map((p) => p.uid)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KÖR VÉGE ELLENŐRZÉS
-// A kör akkor ér véget, ha minden játékos bust/frozen/flip7 státuszban van.
+// A kör akkor ér véget, ha mindenki stayed / busted / flip7 státuszban van.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function isRoundOver(playerStates: Record<string, RoundPlayerState>): boolean {
+export function isRoundOver(
+  playerStates: Record<string, RoundPlayerState>
+): boolean {
   return Object.values(playerStates).every(
-    (p) => p.status === 'busted' || p.status === 'frozen' || p.status === 'flip7' || p.status === 'standing'
+    (p) => p.status === 'stayed' || p.status === 'busted' || p.status === 'flip7'
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KÖR PONTOZÁSA — minden játékos scoreBreakdown-ját kiszámolja
+// KÖR PONTOZÁSA
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function scoreRound(
-  playerStates: Record<string, RoundPlayerState>
+  playerStates: Record<string, RoundPlayerState>,
+  config: GameModeConfig = CLASSIC_MODE_CONFIG
 ): Record<string, RoundPlayerState> {
   const result: Record<string, RoundPlayerState> = {}
+
   for (const [uid, state] of Object.entries(playerStates)) {
-    // Ha már van kézileg beállított roundScore (bust vagy közvetlen pont), azt tartjuk meg
-    if (state.roundScore !== null && state.scoreBreakdown !== null) {
+    // Kézileg beállított közvetlen pont (direct score) marad
+    if (
+      state.roundScore !== null &&
+      state.scoreBreakdown !== null &&
+      !state.scoreBreakdown.busted
+    ) {
       result[uid] = state
       continue
     }
-    const breakdown = calculateRoundScore(state)
+
+    // Minden más esetet (bust, flip7, stayed, active) újraszámolunk
+    const breakdown = calculateRoundScore(state, config)
     result[uid] = {
       ...state,
-      roundScore: breakdown.total,
+      roundScore:     breakdown.total,
       scoreBreakdown: breakdown,
     }
   }
+
   return result
 }
 
@@ -198,11 +313,14 @@ export function initRoundPlayerStates(
   for (const uid of playerUids) {
     states[uid] = {
       uid,
-      status: 'active',
-      numberCards: [],
-      modifiers: [],
-      hasSecondChance: false,
-      roundScore: null,
+      status:         'active',
+      handCards:      [],
+      numberCards:    [],
+      modifierCards:  [],
+      zeroLocked:     false,
+      forcedHit:      false,
+      lucky13Count:   0,
+      roundScore:     null,
       scoreBreakdown: null,
     }
   }

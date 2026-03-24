@@ -14,10 +14,11 @@ import { COLLECTIONS } from '@/lib/constants'
 import {
   scoreRound,
   isRoundOver,
-  getActivePlayers,
   applyCardToPlayer,
 } from '@/lib/gameStateMachine'
-import { determineWinner } from '@/lib/scoreEngine'
+import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
+import { getGameModeConfig } from '@/lib/gameModes'
+import { resolveAction } from '@/lib/actionResolver'
 import { getGame } from './game.service'
 import type { Round, PendingAction, RoundPlayerState } from '@/types'
 import type { Card } from '@/types/card.types'
@@ -90,10 +91,11 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
   if (!roundSnap.exists()) return
   const round = { id: roundSnap.id, ...roundSnap.data() } as Round
 
-  const scoredStates = scoreRound(round.playerStates)
-
   const game = await getGame(gameId)
   if (!game) return
+
+  const config = getGameModeConfig(game.gameMode ?? 'classic', game.brutalMode ?? false)
+  const scoredStates = scoreRound(round.playerStates, config)
 
   const updatedPlayers = game.players.map((p) => {
     const roundScore = scoredStates[p.uid]?.roundScore ?? 0
@@ -128,13 +130,14 @@ export async function drawCardForPlayer(
   roundId: string,
   targetUid: string,
   card: Card,
-  currentPlayerStates: Record<string, RoundPlayerState>
+  currentPlayerStates: Record<string, RoundPlayerState>,
+  gameMode?: string
 ): Promise<void> {
   const playerState = currentPlayerStates[targetUid]
   if (!playerState) return
 
-  const activeUids = getActivePlayers(currentPlayerStates)
-  const result = applyCardToPlayer(card, playerState, activeUids)
+  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, config)
 
   await updateRoundPlayerState(gameId, roundId, targetUid, result.updatedState)
 
@@ -155,13 +158,15 @@ export async function drawMultipleCardsForPlayer(
   roundId: string,
   targetUid: string,
   numbers: number[],
-  currentPlayerStates: Record<string, RoundPlayerState>
+  currentPlayerStates: Record<string, RoundPlayerState>,
+  gameMode?: string
 ): Promise<void> {
   let state = currentPlayerStates[targetUid]
   if (!state) return
-  const activeUids = getActivePlayers(currentPlayerStates)
+  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
   for (const n of numbers) {
-    const result = applyCardToPlayer({ cardType: 'number', value: n }, state, activeUids)
+    const card: Card = { cardType: 'number', variant: 'normal', value: n }
+    const result = applyCardToPlayer(card, state, currentPlayerStates, 0, config)
     state = result.updatedState
     if (state.status === 'busted') break
   }
@@ -181,7 +186,7 @@ export async function standPlayer(
 ): Promise<void> {
   const updatedState: RoundPlayerState = {
     ...currentPlayerStates[targetUid],
-    status: 'standing',
+    status: 'stayed',
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
@@ -195,13 +200,17 @@ export async function bustPlayerManually(
   gameId: string,
   roundId: string,
   targetUid: string,
-  currentPlayerStates: Record<string, RoundPlayerState>
+  currentPlayerStates: Record<string, RoundPlayerState>,
+  gameMode?: string
 ): Promise<void> {
+  const config = getGameModeConfig((gameMode as 'classic' | 'revenge') ?? 'classic')
+  const state = currentPlayerStates[targetUid]
+  const bustBreakdown = calculateBustScore(state, config)
   const updatedState: RoundPlayerState = {
-    ...currentPlayerStates[targetUid],
+    ...state,
     status: 'busted',
-    roundScore: 0,
-    scoreBreakdown: { numberSum: 0, x2Applied: false, doubledSum: 0, modifierBonus: 0, flip7Bonus: 0, total: 0, busted: true },
+    roundScore: bustBreakdown.total,
+    scoreBreakdown: bustBreakdown,
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
@@ -220,9 +229,13 @@ export async function setDirectScore(
 ): Promise<void> {
   const updatedState: RoundPlayerState = {
     ...currentPlayerStates[targetUid],
-    status: 'standing',
+    status: 'stayed',
     roundScore: score,
-    scoreBreakdown: { numberSum: score, x2Applied: false, doubledSum: score, modifierBonus: 0, flip7Bonus: 0, total: score, busted: false },
+    scoreBreakdown: {
+      numberSum: score, divide2Applied: false, halvedSum: score,
+      modifierPenalty: 0, baseScore: score, flip7Bonus: 0,
+      total: score, busted: false, forcedZero: false,
+    },
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
@@ -237,22 +250,27 @@ export async function resolveActionForTarget(
   roundId: string,
   action: PendingAction,
   resolvedTargetUid: string,
-  currentPlayerStates: Record<string, RoundPlayerState>
+  currentPlayerStates: Record<string, RoundPlayerState>,
+  gameMode?: string
 ): Promise<void> {
-  let newStates = { ...currentPlayerStates }
+  const game = await getGame(gameId)
+  const config = getGameModeConfig(
+    (gameMode ?? game?.gameMode ?? 'classic') as 'classic' | 'revenge',
+    game?.brutalMode ?? false
+  )
 
-  if (action.actionType === 'freeze') {
-    const updatedTarget: RoundPlayerState = {
-      ...currentPlayerStates[resolvedTargetUid],
-      status: 'frozen',
+  const resolvedAction: PendingAction = { ...action, resolvedTargetUid }
+  const result = resolveAction({ playerStates: currentPlayerStates, action: resolvedAction, config })
+
+  for (const [uid, state] of Object.entries(result.updatedStates)) {
+    if (state !== currentPlayerStates[uid]) {
+      await updateRoundPlayerState(gameId, roundId, uid, state)
     }
-    await updateRoundPlayerState(gameId, roundId, resolvedTargetUid, updatedTarget)
-    newStates = { ...newStates, [resolvedTargetUid]: updatedTarget }
   }
 
-  await setPendingAction(gameId, roundId, null)
+  await setPendingAction(gameId, roundId, result.nextPendingAction)
 
-  if (action.actionType !== 'flip_three' && isRoundOver(newStates)) {
+  if (!result.nextPendingAction && isRoundOver(result.updatedStates)) {
     await finishRound(gameId, roundId)
   }
 }
