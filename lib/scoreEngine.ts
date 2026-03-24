@@ -65,7 +65,9 @@ export function calculateRoundScore(
   }
 
   // ── 6. Flip 7 bónusz ────────────────────────────────────────────────────
-  const flip7Bonus = isFlip7 ? config.flip7Bonus : 0
+  // Brutal: a +15 / −15 choice mechanism-ban kerül alkalmazásra (resolveBrutalFlip7Choice),
+  // ezért itt 0-t adunk vissza — a service layer számolja rá a bónuszt/büntetést.
+  const flip7Bonus = isFlip7 && !config.brutalFlip7CanPunish ? config.flip7Bonus : 0
   const total      = baseScore + flip7Bonus
 
   return {

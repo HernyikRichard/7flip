@@ -8,6 +8,7 @@ import {
   SPECIAL_NUMBER_COLORS, SPECIAL_NUMBER_LABELS,
 } from '@/lib/gameConstants'
 import type { ClassicActionType, RevengeActionType } from '@/types/card.types'
+import { cn } from '@/lib/utils'
 
 interface CardPickerModalProps {
   playerName: string
@@ -19,17 +20,23 @@ interface CardPickerModalProps {
   onCancel: () => void
 }
 
-// Classic: nincs normál 7 és 13 a paklibarban (csak speciális változatuk van)
-const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
-// Revenge: 7 és 13 normál számkártyaként is előfordul
-const REVENGE_NUMBERS  = [1,2,3,4,5,6,7,8,9,10,11,12,13]
+export const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
+export const REVENGE_NUMBERS = [1,2,3,4,5,6,7,8,9,10,11,12,13]
+
 const MINUS_VALUES  = [2, 4, 6, 8, 10] as const
 const PLUS_VALUES   = [5, 10, 15] as const
 
-const CLASSIC_ACTIONS:  ClassicActionType[]  = ['freeze', 'flip_three', 'second_chance']
-const REVENGE_ACTIONS:  RevengeActionType[]  = ['just_one_more', 'swap', 'steal', 'discard', 'flip_four']
+const CLASSIC_ACTIONS: ClassicActionType[]  = ['freeze', 'flip_three', 'second_chance']
+const REVENGE_ACTIONS: RevengeActionType[]  = ['just_one_more', 'swap', 'steal', 'discard', 'flip_four']
 
 type Tab = 'numbers' | 'special' | 'direct'
+
+// Szín a szám értéke alapján
+function getNumberColor(n: number, isSelected: boolean, wouldBust: boolean): string {
+  if (isSelected) return 'border-primary-500 bg-primary-500/10 text-primary-700 dark:text-primary-300 ring-2 ring-primary-400/50'
+  if (wouldBust)  return 'border-red-400/60 bg-red-500/5 text-red-500 dark:text-red-400'
+  return 'border-border bg-surface-elevated text-foreground hover:border-primary-400/60 hover:bg-primary-500/5'
+}
 
 export default function CardPickerModal({
   playerName,
@@ -40,12 +47,13 @@ export default function CardPickerModal({
   onDirectScore,
   onCancel,
 }: CardPickerModalProps) {
-  const NUMBERS = gameMode === 'revenge' ? REVENGE_NUMBERS : CLASSIC_NUMBERS
+  const NUMBERS = gameMode === 'revenge' || gameMode === 'brutal' ? REVENGE_NUMBERS : CLASSIC_NUMBERS
   const [tab, setTab] = useState<Tab>('numbers')
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([])
   const [directValue, setDirectValue] = useState('')
 
-  const currentSum = existingNumbers.reduce((s, n) => s + n, 0)
+  const currentSum  = existingNumbers.reduce((s, n) => s + n, 0)
+  const selectedSum = selectedNumbers.reduce((s, n) => s + n, 0)
 
   function toggleNumber(n: number) {
     setSelectedNumbers((prev) => {
@@ -56,10 +64,11 @@ export default function CardPickerModal({
     })
   }
 
-  function handleConfirmNumbers() {
-    if (selectedNumbers.length === 0) return
-    onPickMultiple(selectedNumbers)
-  }
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'numbers', label: 'Számok' },
+    { id: 'special', label: 'Akció' },
+    { id: 'direct',  label: 'Végső pont' },
+  ]
 
   return (
     <div
@@ -67,81 +76,84 @@ export default function CardPickerModal({
       onClick={onCancel}
     >
       <div
-        className="bg-surface rounded-t-3xl border-t border-border flex flex-col"
+        className="bg-surface rounded-t-3xl border-t border-border flex flex-col animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Húzócsík */}
-        <div className="flex justify-center pt-2.5 pb-1">
+        {/* Handle */}
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
 
-        {/* Fejléc */}
-        <div className="flex items-center justify-between px-4 pt-1 pb-3">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-1.5 pb-3 shrink-0">
           <div>
-            <p className="font-semibold text-foreground text-sm">{playerName}</p>
+            <p className="font-bold text-foreground text-[15px] leading-tight">{playerName}</p>
             {existingNumbers.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                összeg: <span className="font-semibold text-foreground">{currentSum}</span>
-                {'  ·  '}{existingNumbers.length} lap
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Összeg: <span className="font-semibold text-foreground">{currentSum}</span>
+                <span className="mx-1 opacity-40">·</span>
+                {existingNumbers.length} lap
               </p>
             )}
           </div>
           <button
             onClick={onCancel}
-            className="rounded-xl bg-muted px-3 py-1.5 text-sm text-muted-foreground"
+            className="rounded-xl bg-muted px-3.5 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-surface-elevated transition-colors shrink-0"
           >
             Mégse
           </button>
         </div>
 
-        {/* Tab váltó */}
-        <div className="flex mx-4 mb-3 rounded-xl bg-muted p-1 gap-1">
-          {(['numbers', 'special', 'direct'] as const).map((t) => (
+        {/* Tab bar */}
+        <div className="flex mx-5 mb-4 rounded-xl bg-muted p-1 gap-1 shrink-0">
+          {TABS.map(({ id, label }) => (
             <button
-              key={t}
-              onClick={() => { setTab(t); setSelectedNumbers([]) }}
-              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-                tab === t ? 'bg-surface text-foreground shadow-sm' : 'text-muted-foreground'
-              }`}
+              key={id}
+              onClick={() => { setTab(id); setSelectedNumbers([]) }}
+              className={cn(
+                'flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors',
+                tab === id
+                  ? 'bg-surface text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              {t === 'numbers' ? 'Számok' : t === 'special' ? 'Akció' : 'Végső pont'}
+              {label}
             </button>
           ))}
         </div>
 
-        {/* Tartalom */}
-        <div className="px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+        {/* Content — scrollable */}
+        <div
+          className="overflow-y-auto px-5"
+          style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))', maxHeight: '65dvh' }}
+        >
 
-          {/* ── SZÁMKÁRTYÁK — multi-select ── */}
+          {/* ── SZÁMKÁRTYÁK ── */}
           {tab === 'numbers' && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <div className="grid grid-cols-6 gap-2">
                 {NUMBERS.map((n) => {
                   const wouldBust = existingNumbers.includes(n)
-                  const selIdx = selectedNumbers.indexOf(n)
+                  const selIdx    = selectedNumbers.indexOf(n)
                   const isSelected = selIdx !== -1
                   const full = selectedNumbers.length >= 7 && !isSelected
+
                   return (
                     <button
                       key={n}
                       disabled={full}
                       onClick={() => toggleNumber(n)}
-                      className={`
-                        relative flex flex-col items-center justify-center
-                        rounded-xl border-2 aspect-[3/4] text-lg font-bold
-                        shadow-sm active:scale-90 transition-transform
-                        disabled:opacity-30
-                        ${isSelected
-                          ? 'border-primary-500 bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 ring-2 ring-primary-400'
-                          : wouldBust
-                          ? 'border-red-300 bg-red-50 text-red-500 dark:bg-red-950/50 dark:border-red-700 dark:text-red-400'
-                          : 'border-border bg-surface text-foreground hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/40'
-                        }
-                      `}
+                      className={cn(
+                        'relative flex flex-col items-center justify-center',
+                        'rounded-xl border-2 aspect-[3/4] text-lg font-bold',
+                        'shadow-sm active:scale-90 transition-all duration-100',
+                        'disabled:opacity-30',
+                        getNumberColor(n, isSelected, wouldBust)
+                      )}
                     >
                       {n}
                       {isSelected && (
-                        <span className="absolute -top-1.5 -right-1.5 text-xs leading-none bg-primary-500 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                        <span className="absolute -top-1.5 -right-1.5 text-[10px] leading-none bg-primary-500 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-sm">
                           {selIdx + 1}
                         </span>
                       )}
@@ -153,18 +165,24 @@ export default function CardPickerModal({
                 })}
               </div>
 
-              {/* Összesítő és OK */}
-              <div className="flex items-center gap-3">
+              {/* Summary + confirm */}
+              <div className="flex items-center gap-3 pb-1">
                 <p className="flex-1 text-xs text-muted-foreground">
                   {selectedNumbers.length === 0
                     ? 'Jelöld ki a húzott lapokat (max 7)'
-                    : `Kijelölve: ${selectedNumbers.join(', ')} (összeg: ${selectedNumbers.reduce((s, n) => s + n, 0)})`
+                    : (
+                      <span>
+                        <span className="font-semibold text-foreground">{selectedNumbers.join(', ')}</span>
+                        <span className="text-muted-foreground"> — összeg: </span>
+                        <span className="font-semibold text-foreground">{selectedSum}</span>
+                      </span>
+                    )
                   }
                 </p>
                 <button
                   disabled={selectedNumbers.length === 0}
-                  onClick={handleConfirmNumbers}
-                  className="rounded-2xl border-2 border-primary-400 bg-primary-50 dark:bg-primary-950/40 px-5 py-2.5 text-sm font-bold text-primary-600 dark:text-primary-400 active:scale-[0.98] transition-transform disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => onPickMultiple(selectedNumbers)}
+                  className="rounded-2xl border-2 border-primary-400 bg-primary-500/10 px-5 py-2.5 text-sm font-bold text-primary-600 dark:text-primary-400 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   OK
                 </button>
@@ -174,45 +192,59 @@ export default function CardPickerModal({
 
           {/* ── AKCIÓ + MÓDOSÍTÓKÁRTYÁK ── */}
           {tab === 'special' && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
 
               {/* Speciális számkártyák */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Speciális számkártyák</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
+                  Speciális számkártyák
+                </p>
                 <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => onPick({ cardType: 'number', variant: 'zero', value: 0 })}
-                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.zero}`}
-                  >
-                    {SPECIAL_NUMBER_LABELS.zero} — körpontszám 0 lesz
-                  </button>
-                  <button
-                    onClick={() => onPick({ cardType: 'number', variant: 'unlucky7', value: 7 })}
-                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.unlucky7}`}
-                  >
-                    {SPECIAL_NUMBER_LABELS.unlucky7} — lapok resetelése, csak 7 marad
-                  </button>
-                  <button
-                    onClick={() => onPick({ cardType: 'number', variant: 'lucky13', value: 13 })}
-                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.lucky13}`}
-                  >
-                    {SPECIAL_NUMBER_LABELS.lucky13} — 2. példány engedett, 3. = bust
-                  </button>
+                  {[
+                    { card: { cardType: 'number', variant: 'zero', value: 0 } as Card,
+                      label: SPECIAL_NUMBER_LABELS.zero,
+                      sub: 'Körpontszám 0 lesz (Flip 7 kivétel)',
+                      cls: SPECIAL_NUMBER_COLORS.zero },
+                    { card: { cardType: 'number', variant: 'unlucky7', value: 7 } as Card,
+                      label: SPECIAL_NUMBER_LABELS.unlucky7,
+                      sub: 'Korábbi lapok eldobva, csak 7 marad',
+                      cls: SPECIAL_NUMBER_COLORS.unlucky7 },
+                    { card: { cardType: 'number', variant: 'lucky13', value: 13 } as Card,
+                      label: SPECIAL_NUMBER_LABELS.lucky13,
+                      sub: '2 db engedett, 3. = bust',
+                      cls: SPECIAL_NUMBER_COLORS.lucky13 },
+                  ].map(({ card, label, sub, cls }) => (
+                    <button
+                      key={label}
+                      onClick={() => onPick(card)}
+                      className={cn(
+                        'rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left',
+                        'active:scale-[0.98] transition-transform',
+                        cls
+                      )}
+                    >
+                      <span>{label}</span>
+                      <span className="block text-xs font-normal opacity-70 mt-0.5">{sub}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {/* Akciókártyák */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Akciókártyák</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
+                  Akciókártyák
+                </p>
                 <div className="flex flex-col gap-2">
                   {(gameMode === 'classic' ? CLASSIC_ACTIONS : REVENGE_ACTIONS).map((at) => (
                     <button
                       key={at}
                       onClick={() => onPick({ cardType: 'action', actionType: at })}
-                      className={`
-                        rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left
-                        active:scale-[0.98] transition-transform
-                        ${ACTION_CARD_COLORS[at]}
-                      `}
+                      className={cn(
+                        'rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left',
+                        'active:scale-[0.98] transition-transform',
+                        ACTION_CARD_COLORS[at]
+                      )}
                     >
                       {ACTION_CARD_LABELS[at]}
                     </button>
@@ -220,13 +252,16 @@ export default function CardPickerModal({
                 </div>
               </div>
 
+              {/* Módosítókártyák */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Módosítókártyák</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2.5">
+                  Módosítókártyák
+                </p>
                 {gameMode === 'classic' ? (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => onPick({ cardType: 'modifier', modifierType: 'x2' })}
-                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.x2}`}
+                      className={cn('rounded-2xl border-2 py-3.5 text-center font-bold active:scale-95 transition-transform', MODIFIER_CARD_COLORS.x2)}
                     >
                       {MODIFIER_CARD_LABELS.x2}
                     </button>
@@ -234,7 +269,7 @@ export default function CardPickerModal({
                       <button
                         key={v}
                         onClick={() => onPick({ cardType: 'modifier', modifierType: 'plus', value: v })}
-                        className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.plus}`}
+                        className={cn('rounded-2xl border-2 py-3.5 text-center font-bold active:scale-95 transition-transform', MODIFIER_CARD_COLORS.plus)}
                       >
                         +{v}
                       </button>
@@ -244,7 +279,7 @@ export default function CardPickerModal({
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => onPick({ cardType: 'modifier', modifierType: 'divide2' })}
-                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.divide2}`}
+                      className={cn('rounded-2xl border-2 py-3.5 text-center font-bold active:scale-95 transition-transform', MODIFIER_CARD_COLORS.divide2)}
                     >
                       {MODIFIER_CARD_LABELS.divide2}
                     </button>
@@ -252,9 +287,9 @@ export default function CardPickerModal({
                       <button
                         key={v}
                         onClick={() => onPick({ cardType: 'modifier', modifierType: 'minus', value: v })}
-                        className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.minus}`}
+                        className={cn('rounded-2xl border-2 py-3.5 text-center font-bold active:scale-95 transition-transform', MODIFIER_CARD_COLORS.minus)}
                       >
-                        -{v}
+                        −{v}
                       </button>
                     ))}
                   </div>
@@ -265,9 +300,9 @@ export default function CardPickerModal({
 
           {/* ── VÉGSŐ PONT ── */}
           {tab === 'direct' && (
-            <div className="flex flex-col gap-4 py-2">
-              <p className="text-xs text-muted-foreground text-center">
-                Közvetlen kör-pontszám rögzítése (kártyák mellőzésével)
+            <div className="flex flex-col gap-5 py-2">
+              <p className="text-sm text-muted-foreground text-center">
+                Közvetlen kör-pontszám rögzítése
               </p>
               <input
                 type="number"
@@ -279,19 +314,19 @@ export default function CardPickerModal({
                   setDirectValue(raw)
                 }}
                 placeholder="0"
-                className="w-full rounded-2xl border-2 border-border bg-surface text-center text-4xl font-bold tabular-nums text-foreground py-4 outline-none focus:border-primary-400"
+                className="w-full rounded-2xl border-2 border-border bg-surface-elevated text-center text-5xl font-bold tabular-nums text-foreground py-5 outline-none focus:border-primary-400 transition-colors"
               />
               <div className="flex gap-3">
                 <button
                   onClick={() => onDirectScore(0)}
-                  className="flex-1 rounded-2xl border-2 border-red-300 bg-red-50 dark:bg-red-950/40 py-3 text-sm font-semibold text-red-600 dark:text-red-400 active:scale-[0.98] transition-transform"
+                  className="flex-1 rounded-2xl border-2 border-red-400/60 bg-red-500/5 py-3.5 text-sm font-semibold text-red-600 dark:text-red-400 active:scale-[0.98] transition-transform"
                 >
                   💥 Bust (0 p)
                 </button>
                 <button
                   disabled={directValue === ''}
                   onClick={() => onDirectScore(parseInt(directValue, 10))}
-                  className="flex-1 rounded-2xl border-2 border-primary-400 bg-primary-50 dark:bg-primary-950/40 py-3 text-sm font-semibold text-primary-600 dark:text-primary-400 active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-2xl border-2 border-primary-400 bg-primary-500/10 py-3.5 text-sm font-semibold text-primary-600 dark:text-primary-400 active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Rögzítés ✓
                 </button>

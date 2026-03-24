@@ -7,11 +7,12 @@ import type { GameMode } from './gameMode.types'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type GameStatus =
-  | 'waiting_for_players'  // játék létrehozva, várjuk a játékosokat
-  | 'in_round'             // kör folyamatban
-  | 'awaiting_action'      // akciókártya kijátszva, resolution folyamatban
-  | 'round_finished'       // kör pontozva, eredmény megjelenítve
-  | 'game_finished'        // valaki elérte a targetScore-t
+  | 'waiting_for_players'   // játék létrehozva, várjuk a játékosokat
+  | 'in_round'              // kör folyamatban
+  | 'awaiting_action'       // akciókártya kijátszva, resolution folyamatban
+  | 'awaiting_brutal_flip7' // Brutal: Flip 7 choice függőben (chooser dönt: +15 v. -15)
+  | 'round_finished'        // kör pontozva, eredmény megjelenítve
+  | 'game_finished'         // valaki elérte a targetScore-t
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER ÁLLAPOT EGY KÖRBEN
@@ -175,6 +176,19 @@ export interface Round {
   /** Játékos állapotok — uid → RoundPlayerState */
   playerStates: Record<string, RoundPlayerState>
   pendingAction: PendingAction | null
+  /**
+   * Brutal mód: Flip 7-nél choice függőben.
+   * A chooser dönt: +15 magának VAGY -15 ellenfélnek.
+   * null ha nincs függőben lévő choice.
+   */
+  pendingBrutalFlip7?: { chooserUid: string; availableTargetUids: string[] } | null
+  /**
+   * Brutal mód: A Flip 7 choice feloldva.
+   * targetUid === chooserUid → +15 magának.
+   * targetUid !== chooserUid → -15 a célpontnak.
+   * null ha nem volt Brutal Flip 7 ebben a körben.
+   */
+  resolvedBrutalFlip7Choice?: { chooserUid: string; targetUid: string } | null
   /** Körön belüli húzási sorrend */
   turnOrder: string[]
   createdAt: Timestamp
@@ -216,7 +230,7 @@ export interface Game {
   players: GamePlayer[]
   playerUids: string[]
   roundCount: number
-  /** Classic: 200, Revenge/Brutal: 150 */
+  /** Classic/Revenge/Brutal: 200 */
   targetScore: number
   /** Denormalizált a gyors UI-hoz */
   pendingAction: PendingAction | null
@@ -265,6 +279,14 @@ export type GameEventType =
   | 'round_scored'
   | 'round_ended'
   | 'game_ended'
+  // Classic action events
+  | 'freeze_applied'
+  | 'player_frozen'
+  | 'flip_three_card_dealt'
+  | 'flip_three_complete'
+  | 'second_chance_used'
+  // Brutal events
+  | 'brutal_flip7_choice'
 
 export interface GameEvent {
   id: string
