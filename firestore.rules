@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.email == resource.data.email;
+      allow delete: if false;
+
+      // Értesítések — más auth user is írhat (pl. meghívó elutasítása)
+      match /notifications/{notifId} {
+        allow read, update: if isOwner(userId);
+        allow create: if isSignedIn();
+      }
+    }
+
+    // ── Friend Requests ───────────────────────────────────────────────────────
+    match /friendRequests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isSignedIn() && (
+        // Fogadó elfogadja/elutasítja
+        resource.data.toUid == request.auth.uid ||
+        // Küldő visszavonja (státusz pending marad, de törölheti)
+        resource.data.fromUid == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+    }
+
+    // ── Friendships ───────────────────────────────────────────────────────────
+    match /friendships/{friendshipId} {
+      allow read: if isSignedIn() &&
+        request.auth.uid in resource.data.userIds;
+      // Kliens hozza létre elfogadáskor — mindkét uid bent kell legyen
+      allow create: if isSignedIn() &&
+        request.auth.uid in request.resource.data.userIds;
+      allow update: if false;
+      allow delete: if isSignedIn() &&
+        request.auth.uid in resource.data.userIds;
+    }
+
+    // ── Games ─────────────────────────────────────────────────────────────────
+    match /games/{gameId} {
+      allow read: if isSignedIn() &&
+        request.auth.uid in resource.data.playerUids;
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.auth.uid in request.resource.data.playerUids;
+      allow update: if isSignedIn() &&
+        request.auth.uid in resource.data.playerUids;
+      allow delete: if false;
+
+      match /rounds/{roundId} {
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
+        allow create, update: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
+        allow delete: if false;
+      }
+
+      match /presence/{uid} {
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
+        allow create, update: if isSignedIn() && request.auth.uid == uid;
+        allow delete: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // ── Scan Results ──────────────────────────────────────────────────────────
+    match /scanResults/{scanId} {
+      allow read: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
