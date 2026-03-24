@@ -37,3 +37,5 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: flip-hr
           channelId: live
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
