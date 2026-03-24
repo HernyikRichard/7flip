@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   getDoc,
+  getDocs,
   setDoc,
   deleteDoc,
   updateDoc,
@@ -386,6 +387,16 @@ export async function resolveActionForTarget(
   if (action.actionType !== 'flip_three' && isRoundOver(newStates)) {
     await finishRound(gameId, roundId)
   }
+}
+
+// ── Játék összes körének lekérése (history) ──────────────────────────────────
+export async function getGameRounds(gameId: string): Promise<Round[]> {
+  const q = query(
+    collection(db, COLLECTIONS.GAMES, gameId, COLLECTIONS.ROUNDS),
+    orderBy('roundNumber', 'asc')
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Round)
 }
 
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────
