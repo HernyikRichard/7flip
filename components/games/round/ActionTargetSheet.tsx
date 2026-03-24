@@ -11,7 +11,7 @@ interface ActionTargetSheetProps {
 }
 
 export default function ActionTargetSheet({ action, players, onSelect }: ActionTargetSheetProps) {
-  const targets = players.filter((p) => action.availableTargets.includes(p.uid))
+  const targets = players.filter((p) => action.availableTargetUids.includes(p.uid))
   const actor   = players.find((p) => p.uid === action.playedByUid)
 
   return (
@@ -26,9 +26,9 @@ export default function ActionTargetSheet({ action, players, onSelect }: ActionT
               {actor.displayName} kijátszotta — válassz célt
             </p>
           )}
-          {action.actionType === 'flip_three' && (
+          {action.actionType === 'flip_four' && (
             <p className="text-xs text-orange-600 dark:text-orange-400 text-center mt-1">
-              A kiválasztott játékos 3 extra lapot kap
+              A kiválasztott játékos 4 extra lapot kap
             </p>
           )}
         </div>

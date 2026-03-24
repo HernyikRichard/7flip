@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import type { Card } from '@/types/card.types'
-import { ACTION_CARD_LABELS, ACTION_CARD_COLORS, MODIFIER_CARD_COLORS } from '@/lib/gameConstants'
+import { ACTION_CARD_LABELS, ACTION_CARD_COLORS, MODIFIER_CARD_COLORS, SPECIAL_NUMBER_COLORS, SPECIAL_NUMBER_LABELS } from '@/lib/gameConstants'
 
 interface CardPickerModalProps {
   playerName: string
+  gameMode?: string
   existingNumbers?: number[]
   onPickMultiple: (numbers: number[]) => void
   onPick: (card: Card) => void
@@ -13,19 +14,24 @@ interface CardPickerModalProps {
   onCancel: () => void
 }
 
-const NUMBERS = [0,1,2,3,4,5,6,7,8,9,10,11,12]
-const PLUS_VALUES = [2, 4, 6, 8, 10] as const
+// Classic: nincs normál 7 és 13 a paklibarban (csak speciális változatuk van)
+const CLASSIC_NUMBERS = [1,2,3,4,5,6,8,9,10,11,12]
+// Revenge: 7 és 13 normál számkártyaként is előfordul
+const REVENGE_NUMBERS  = [1,2,3,4,5,6,7,8,9,10,11,12,13]
+const MINUS_VALUES = [2, 4, 6, 8, 10] as const
 
 type Tab = 'numbers' | 'special' | 'direct'
 
 export default function CardPickerModal({
   playerName,
+  gameMode = 'classic',
   existingNumbers = [],
   onPickMultiple,
   onPick,
   onDirectScore,
   onCancel,
 }: CardPickerModalProps) {
+  const NUMBERS = gameMode === 'revenge' ? REVENGE_NUMBERS : CLASSIC_NUMBERS
   const [tab, setTab] = useState<Tab>('numbers')
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([])
   const [directValue, setDirectValue] = useState('')
@@ -100,7 +106,7 @@ export default function CardPickerModal({
           {/* ── SZÁMKÁRTYÁK — multi-select ── */}
           {tab === 'numbers' && (
             <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-6 gap-2">
                 {NUMBERS.map((n) => {
                   const wouldBust = existingNumbers.includes(n)
                   const selIdx = selectedNumbers.indexOf(n)
@@ -160,10 +166,36 @@ export default function CardPickerModal({
           {/* ── AKCIÓ + MÓDOSÍTÓKÁRTYÁK ── */}
           {tab === 'special' && (
             <div className="flex flex-col gap-4">
+
+              {/* Speciális számkártyák */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Speciális számkártyák</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => onPick({ cardType: 'number', variant: 'zero', value: 0 })}
+                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.zero}`}
+                  >
+                    {SPECIAL_NUMBER_LABELS.zero} — körpontszám 0 lesz
+                  </button>
+                  <button
+                    onClick={() => onPick({ cardType: 'number', variant: 'unlucky7', value: 7 })}
+                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.unlucky7}`}
+                  >
+                    {SPECIAL_NUMBER_LABELS.unlucky7} — lapok resetelése, csak 7 marad
+                  </button>
+                  <button
+                    onClick={() => onPick({ cardType: 'number', variant: 'lucky13', value: 13 })}
+                    className={`rounded-2xl border-2 px-4 py-3 text-sm font-semibold text-left active:scale-[0.98] transition-transform ${SPECIAL_NUMBER_COLORS.lucky13}`}
+                  >
+                    {SPECIAL_NUMBER_LABELS.lucky13} — 2. példány engedett, 3. = bust
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Akciókártyák</p>
                 <div className="flex flex-col gap-2">
-                  {(['freeze', 'flip_three', 'second_chance'] as const).map((at) => (
+                  {(['just_one_more', 'swap', 'steal', 'discard', 'flip_four'] as const).map((at) => (
                     <button
                       key={at}
                       onClick={() => onPick({ cardType: 'action', actionType: at })}
@@ -183,18 +215,18 @@ export default function CardPickerModal({
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Módosítókártyák</p>
                 <div className="grid grid-cols-3 gap-2">
                   <button
-                    onClick={() => onPick({ cardType: 'modifier', modifierType: 'x2' })}
-                    className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.x2}`}
+                    onClick={() => onPick({ cardType: 'modifier', modifierType: 'divide2' })}
+                    className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.divide2}`}
                   >
-                    ×2
+                    ÷2
                   </button>
-                  {PLUS_VALUES.map((v) => (
+                  {MINUS_VALUES.map((v) => (
                     <button
                       key={v}
-                      onClick={() => onPick({ cardType: 'modifier', modifierType: 'plus', plusValue: v })}
-                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.plus}`}
+                      onClick={() => onPick({ cardType: 'modifier', modifierType: 'minus', minusValue: v })}
+                      className={`rounded-2xl border-2 py-3 text-center font-bold active:scale-95 transition-transform ${MODIFIER_CARD_COLORS.minus}`}
                     >
-                      +{v}
+                      -{v}
                     </button>
                   ))}
                 </div>

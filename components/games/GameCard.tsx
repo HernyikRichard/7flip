@@ -3,6 +3,7 @@ import { Users, Calendar } from 'lucide-react'
 import GameStatusBadge from './GameStatusBadge'
 import Avatar from '@/components/ui/Avatar'
 import { formatRelativeTime, toDate } from '@/lib/utils'
+import { GAME_MODE_LABELS } from '@/lib/gameModes'
 import type { Game } from '@/types'
 
 interface GameCardProps {
@@ -27,6 +28,11 @@ export default function GameCard({ game, currentUid }: GameCardProps) {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar size={14} />
           <span>{formatRelativeTime(toDate(game.createdAt) ?? new Date())}</span>
+          {game.gameMode === 'revenge' && (
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400">
+              💀 {GAME_MODE_LABELS['revenge']}
+            </span>
+          )}
         </div>
         <GameStatusBadge status={game.status} />
       </div>

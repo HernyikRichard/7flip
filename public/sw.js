@@ -1,4 +1,4 @@
-const CACHE_NAME = '7flip-v1'
+const CACHE_NAME = '7flip-v2'
 
 // App shell fájlok — ezek mindig cache-elve lesznek
 const APP_SHELL = [
@@ -41,15 +41,8 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Next.js statikus assetok (_next/static): cache-first
-  if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached ?? fetch(request).then((res) => {
-        const clone = res.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-        return res
-      }))
-    )
+  // Next.js statikus assetok (_next/static): network-first (dev-ben ne cache-eljük)
+  if (url.pathname.startsWith('/_next/')) {
     return
   }
 

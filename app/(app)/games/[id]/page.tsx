@@ -24,6 +24,7 @@ import PlayerRoundRow from '@/components/games/round/PlayerRoundRow'
 import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import { ROUTES } from '@/lib/constants'
+import { GAME_MODE_LABELS } from '@/lib/gameModes'
 import type { Card } from '@/types/card.types'
 
 export default function GamePage() {
@@ -34,7 +35,7 @@ export default function GamePage() {
   const { onlineUids } = usePresence(id)
 
   const [pickerForUid, setPickerForUid] = useState<string | null>(null)
-  const [flipThreeCount, setFlipThreeCount] = useState(0)
+  const [flipFourCount, setFlipFourCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
 
@@ -56,8 +57,8 @@ export default function GamePage() {
   const pendingAction  = game.pendingAction
   const allAccepted    = game.players.every((p) => !p.inviteStatus || p.inviteStatus === 'accepted')
 
-  // Flip Three akció: ki a célpont?
-  const isFlipThreeActive = isAwaiting && pendingAction?.actionType === 'flip_three' && pendingAction.resolvedTargetUid
+  // Flip Four akció: ki a célpont?
+  const isFlipFourActive = isAwaiting && pendingAction?.actionType === 'flip_four' && pendingAction.resolvedTargetUid
 
   async function handleStartRound() {
     setBusy(true)
@@ -71,12 +72,14 @@ export default function GamePage() {
     return !isOnline || uid === user?.uid
   }
 
+  const gameMode = game.gameMode ?? 'classic'
+
   async function handleMultiplePicked(numbers: number[]) {
     if (!currentRound || !pickerForUid) return
     setBusy(true)
     setPickerForUid(null)
     try {
-      await drawMultipleCardsForPlayer(id, currentRound.id, pickerForUid, numbers, currentRound.playerStates)
+      await drawMultipleCardsForPlayer(id, currentRound.id, pickerForUid, numbers, currentRound.playerStates, gameMode)
     } finally { setBusy(false) }
   }
 
@@ -85,17 +88,17 @@ export default function GamePage() {
     setBusy(true)
     setPickerForUid(null)
     try {
-      if (isFlipThreeActive && pendingAction?.resolvedTargetUid) {
-        await drawCardForPlayer(id, currentRound.id, pendingAction.resolvedTargetUid, card, currentRound.playerStates)
-        const next = flipThreeCount + 1
-        if (next < 3) {
-          setFlipThreeCount(next)
+      if (isFlipFourActive && pendingAction?.resolvedTargetUid) {
+        await drawCardForPlayer(id, currentRound.id, pendingAction.resolvedTargetUid, card, currentRound.playerStates, gameMode)
+        const next = flipFourCount + 1
+        if (next < 4) {
+          setFlipFourCount(next)
           setPickerForUid(pendingAction.resolvedTargetUid)
         } else {
-          setFlipThreeCount(0)
+          setFlipFourCount(0)
         }
       } else {
-        await drawCardForPlayer(id, currentRound.id, pickerForUid, card, currentRound.playerStates)
+        await drawCardForPlayer(id, currentRound.id, pickerForUid, card, currentRound.playerStates, gameMode)
       }
     } finally { setBusy(false) }
   }
@@ -110,7 +113,7 @@ export default function GamePage() {
   async function handleBust(uid: string) {
     if (!currentRound) return
     setBusy(true)
-    try { await bustPlayerManually(id, currentRound.id, uid, currentRound.playerStates) }
+    try { await bustPlayerManually(id, currentRound.id, uid, currentRound.playerStates, gameMode) }
     finally { setBusy(false) }
   }
 
@@ -127,8 +130,8 @@ export default function GamePage() {
     setBusy(true)
     try {
       await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
-      if (pendingAction.actionType === 'flip_three') {
-        setFlipThreeCount(0)
+      if (pendingAction.actionType === 'flip_four') {
+        setFlipFourCount(0)
         setPickerForUid(targetUid)
       }
     } finally { setBusy(false) }
@@ -151,7 +154,7 @@ export default function GamePage() {
   }
 
   const pickerPlayer    = pickerForUid ? game.players.find((p) => p.uid === pickerForUid) : null
-  const pickerUidForNumbers = (isFlipThreeActive && pendingAction?.resolvedTargetUid)
+  const pickerUidForNumbers = (isFlipFourActive && pendingAction?.resolvedTargetUid)
     ? pendingAction.resolvedTargetUid
     : pickerForUid
   const existingNumbers = pickerUidForNumbers
@@ -165,7 +168,16 @@ export default function GamePage() {
 
         {/* Fejléc */}
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">{game.roundCount}. kör · Cél: {game.targetScore} pont</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground">{game.roundCount}. kör · Cél: {game.targetScore} pont</p>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              game.gameMode === 'revenge'
+                ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+            }`}>
+              {game.gameMode === 'revenge' ? '💀' : '🎯'} {GAME_MODE_LABELS[game.gameMode ?? 'classic']}
+            </span>
+          </div>
           <GameStatusBadge status={game.status} />
         </div>
 
@@ -219,8 +231,8 @@ export default function GamePage() {
             {game.players.map((player) => {
               const state = currentRound.playerStates[player.uid]
               if (!state) return null
-              const isFlipThreeTarget = !!(
-                pendingAction?.actionType === 'flip_three' &&
+              const isFlipFourTarget = !!(
+                pendingAction?.actionType === 'flip_four' &&
                 pendingAction.resolvedTargetUid === player.uid
               )
               return (
@@ -230,7 +242,7 @@ export default function GamePage() {
                   state={state}
                   isCurrentUser={player.uid === user.uid}
                   canAct={canRecordFor(player.uid)}
-                  flipThreePending={isFlipThreeTarget}
+                  flipFourPending={isFlipFourTarget}
                   onAddCard={() => setPickerForUid(player.uid)}
                   onStand={() => handleStand(player.uid)}
                   onBust={() => handleBust(player.uid)}
@@ -271,14 +283,16 @@ export default function GamePage() {
                     {state.scoreBreakdown && (
                       <p className="text-xs text-muted-foreground mt-0.5 pl-10">
                         {state.scoreBreakdown.busted
-                          ? 'Bust 💥'
-                          : state.scoreBreakdown.numberSum === 0
-                          ? state.status === 'frozen' ? 'Frozen ❄️ — 0 pont' : '0 pont'
+                          ? state.scoreBreakdown.bustPenalty
+                            ? `Bust 💥 (${state.scoreBreakdown.bustPenalty} pont)`
+                            : 'Bust 💥'
+                          : state.scoreBreakdown.forcedZero
+                          ? 'The Zero 🎯 — 0 pont'
                           : [
                               `Számok: ${state.scoreBreakdown.numberSum}`,
-                              state.scoreBreakdown.x2Applied && `×2 = ${state.scoreBreakdown.doubledSum}`,
-                              state.scoreBreakdown.modifierBonus && `+${state.scoreBreakdown.modifierBonus}`,
-                              state.scoreBreakdown.flip7Bonus && `🎉+${state.scoreBreakdown.flip7Bonus}`,
+                              state.scoreBreakdown.divide2Applied && `÷2 = ${state.scoreBreakdown.halvedSum}`,
+                              state.scoreBreakdown.modifierPenalty > 0 && `-${state.scoreBreakdown.modifierPenalty}`,
+                              state.scoreBreakdown.flip7Bonus > 0 && `🎉+${state.scoreBreakdown.flip7Bonus}`,
                               `= ${state.scoreBreakdown.total} p`,
                             ].filter(Boolean).join('  ')
                         }
@@ -339,15 +353,16 @@ export default function GamePage() {
       {pickerForUid && pickerPlayer && (
         <CardPickerModal
           playerName={
-            isFlipThreeActive && pendingAction?.resolvedTargetUid
-              ? `${pickerPlayer.displayName} (Flip Three — ${flipThreeCount + 1}/3)`
+            isFlipFourActive && pendingAction?.resolvedTargetUid
+              ? `${pickerPlayer.displayName} (Flip Four — ${flipFourCount + 1}/4)`
               : pickerPlayer.displayName
           }
+          gameMode={gameMode}
           existingNumbers={existingNumbers}
           onPickMultiple={handleMultiplePicked}
           onPick={handleCardPicked}
           onDirectScore={(score) => handleDirectScore(pickerForUid!, score)}
-          onCancel={() => { setPickerForUid(null); setFlipThreeCount(0) }}
+          onCancel={() => { setPickerForUid(null); setFlipFourCount(0) }}
         />
       )}
 

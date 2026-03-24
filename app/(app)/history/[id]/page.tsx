@@ -10,6 +10,7 @@ import HistoryScoreChart from '@/components/history/HistoryScoreChart'
 import HistoryRoundBreakdown from '@/components/history/HistoryRoundBreakdown'
 import { toDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
+import { GAME_MODE_LABELS } from '@/lib/gameModes'
 
 export default function GameHistoryDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -52,6 +53,15 @@ export default function GameHistoryDetailPage() {
               <p className="text-sm text-amber-600 dark:text-amber-400">
                 {winner.totalScore} pont · {game.roundCount} kör · {game.players.length} játékos
               </p>
+              {game.gameMode && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  game.gameMode === 'revenge'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
+                    : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+                }`}>
+                  {game.gameMode === 'revenge' ? '💀' : '🎯'} {GAME_MODE_LABELS[game.gameMode]}
+                </span>
+              )}
             </div>
             {finishedDate && (
               <p className="text-xs text-amber-500 dark:text-amber-500">

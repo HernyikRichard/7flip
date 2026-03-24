@@ -12,35 +12,35 @@ interface PlayerRoundRowProps {
   state: RoundPlayerState
   isCurrentUser: boolean
   canAct: boolean
-  flipThreePending?: boolean
+  flipFourPending?: boolean
   onAddCard: () => void
   onStand: () => void
   onBust: () => void
 }
 
 const STATUS_ROW_COLORS: Record<string, string> = {
-  active:   'border-border bg-surface',
-  standing: 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30',
-  busted:   'border-red-300 bg-red-50 dark:bg-red-950/30',
-  frozen:   'border-blue-300 bg-blue-50 dark:bg-blue-950/30',
-  flip7:    'border-amber-300 bg-amber-50 dark:bg-amber-950/30',
+  active:  'border-border bg-surface',
+  stayed:  'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30',
+  busted:  'border-red-300 bg-red-50 dark:bg-red-950/30',
+  flip7:   'border-amber-300 bg-amber-50 dark:bg-amber-950/30',
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  active:   '',
-  standing: '✋',
-  busted:   '💥',
-  frozen:   '❄️',
-  flip7:    '🎉',
+  active:  '',
+  stayed:  '✋',
+  busted:  '💥',
+  flip7:   '🎉',
 }
 
 export default function PlayerRoundRow({
-  player, state, isCurrentUser, canAct, flipThreePending, onAddCard, onStand, onBust,
+  player, state, isCurrentUser, canAct, flipFourPending, onAddCard, onStand, onBust,
 }: PlayerRoundRowProps) {
-  const isActive    = state.status === 'active'
-  const statusColor = STATUS_ROW_COLORS[state.status] ?? 'border-border bg-surface'
-  const liveSum     = state.numberCards.reduce((s, n) => s + n, 0)
-  const hasCards    = state.numberCards.length > 0 || state.modifiers.length > 0
+  const isActive      = state.status === 'active'
+  const statusColor   = STATUS_ROW_COLORS[state.status] ?? 'border-border bg-surface'
+  const numberCards   = state.numberCards   ?? []
+  const modifierCards = state.modifierCards ?? []
+  const liveSum       = numberCards.reduce((s, n) => s + n, 0)
+  const hasCards      = numberCards.length > 0 || modifierCards.length > 0
 
   return (
     <div className={`
@@ -48,7 +48,7 @@ export default function PlayerRoundRow({
       transition-colors duration-200
       ${statusColor}
       ${isCurrentUser ? 'ring-2 ring-primary-300 ring-offset-1' : ''}
-      ${flipThreePending ? 'ring-2 ring-orange-400 ring-offset-1' : ''}
+      ${flipFourPending ? 'ring-2 ring-orange-400 ring-offset-1' : ''}
     `}>
 
       {/* Fejléc */}
@@ -65,13 +65,8 @@ export default function PlayerRoundRow({
           <p className="text-xs text-muted-foreground">{PLAYER_STATUS_LABELS[state.status]}</p>
         </div>
 
-        {/* Jobb oldal: összeg / végponts / SC badge */}
+        {/* Jobb oldal: összeg / végpontszám */}
         <div className="flex items-center gap-2 shrink-0">
-          {state.hasSecondChance && (
-            <span className="text-xs rounded-full border border-emerald-300 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5">
-              🛡️ SC
-            </span>
-          )}
           {state.roundScore !== null ? (
             <span className={`font-bold text-base tabular-nums ${state.roundScore === 0 ? 'text-red-500 dark:text-red-400' : 'text-foreground'}`}>
               {state.roundScore} p
@@ -87,7 +82,7 @@ export default function PlayerRoundRow({
       {/* Kártyák */}
       {hasCards && (
         <div className="flex flex-wrap gap-1.5">
-          {state.numberCards.map((n, i) => (
+          {numberCards.map((n, i) => (
             <span
               key={i}
               className={`
@@ -100,7 +95,7 @@ export default function PlayerRoundRow({
               {n}
             </span>
           ))}
-          {state.modifiers.map((m, i) => (
+          {modifierCards.map((m, i) => (
             <span
               key={i}
               className={`
@@ -110,7 +105,7 @@ export default function PlayerRoundRow({
                 shadow-sm
               `}
             >
-              {m.modifierType === 'x2' ? '×2' : `+${m.plusValue}`}
+              {m.modifierType === 'divide2' ? '÷2' : `-${m.minusValue}`}
             </span>
           ))}
         </div>
@@ -121,17 +116,17 @@ export default function PlayerRoundRow({
         <p className="text-xs text-muted-foreground leading-relaxed">
           {[
             state.scoreBreakdown.numberSum > 0 && `Számok: ${state.scoreBreakdown.numberSum}`,
-            state.scoreBreakdown.x2Applied && `×2 = ${state.scoreBreakdown.doubledSum}`,
-            state.scoreBreakdown.modifierBonus > 0 && `+módosítók: ${state.scoreBreakdown.modifierBonus}`,
+            state.scoreBreakdown.divide2Applied && `÷2 = ${state.scoreBreakdown.halvedSum}`,
+            state.scoreBreakdown.modifierPenalty > 0 && `-${state.scoreBreakdown.modifierPenalty}`,
             state.scoreBreakdown.flip7Bonus > 0 && `🎉 Flip 7: +${state.scoreBreakdown.flip7Bonus}`,
           ].filter(Boolean).join('  ·  ')}
         </p>
       )}
 
-      {/* Flip Three jelzés */}
-      {flipThreePending && (
+      {/* Flip Four jelzés */}
+      {flipFourPending && (
         <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-          🔄 Flip Three — 3 lapot kap
+          🔄 Flip Four — 4 lapot kap
         </p>
       )}
 
