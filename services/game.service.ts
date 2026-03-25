@@ -8,7 +8,6 @@ import {
   deleteDoc,
   updateDoc,
   arrayUnion,
-  increment,
   query,
   where,
   orderBy,
@@ -210,17 +209,8 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
     ...(winnerId ? { winnerId, finishedAt: serverTimestamp() } : {}),
   })
 
-  // Ha a játék véget ért: user profil statisztikák frissítése
-  if (winnerId) {
-    await Promise.all(
-      game.playerUids.map((uid) =>
-        updateDoc(doc(db, COLLECTIONS.USERS, uid), {
-          gamesPlayed: increment(1),
-          ...(uid === winnerId ? { gamesWon: increment(1) } : {}),
-        })
-      )
-    )
-  }
+  // Megjegyzés: gamesPlayed/gamesWon stat frissítése Cloud Function feladata
+  // (client-side nem írhat más user dokumentumára — Firestore rules tiltja)
 }
 
 // ── Esemény naplózása ────────────────────────────────────────────────────────
@@ -471,22 +461,12 @@ export async function rematchGame(gameId: string, initiatorUid: string): Promise
 
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────
 export async function forceFinishGame(gameId: string, winnerId: string): Promise<void> {
-  const game = await getGame(gameId)
   await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
     status: 'game_finished',
     winnerId,
     finishedAt: serverTimestamp(),
   })
-  if (game) {
-    await Promise.all(
-      game.playerUids.map((uid) =>
-        updateDoc(doc(db, COLLECTIONS.USERS, uid), {
-          gamesPlayed: increment(1),
-          ...(uid === winnerId ? { gamesWon: increment(1) } : {}),
-        })
-      )
-    )
-  }
+  // Megjegyzés: gamesPlayed/gamesWon stat frissítése Cloud Function feladata
 }
 
 // ── Több számkártya egyszerre ─────────────────────────────────────────────────
