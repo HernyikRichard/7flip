@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { loginWithGoogle } from '@/services/auth.service'
-import { shouldUseRedirectAuth } from '@/lib/utils/device'
 import { getAuthErrorMessage } from '@/lib/firebase/errors'
 import { ROUTES } from '@/lib/constants'
 
@@ -20,25 +19,16 @@ export default function GoogleLoginButton({ onError }: GoogleLoginButtonProps) {
     setLoading(true)
     try {
       const user = await loginWithGoogle()
-
       if (user) {
-        // Popup flow: user azonnal megvan
         router.push(ROUTES.DASHBOARD)
       }
-      // Redirect flow: loginWithGoogle() null-t ad vissza, a böngésző navigál el.
-      // Loading state szándékosan marad true — az oldal úgyis elhagyásra kerül.
-      // (Ha valamiért nem navigál, a user újra megnyomhatja a gombot → loading reset)
+      // user === null → popup bezárva, nem hiba, gomb visszaáll
     } catch (err) {
       onError?.(getAuthErrorMessage(err))
-      setLoading(false) // csak hiba esetén resetelünk
+    } finally {
+      setLoading(false)
     }
-    // Nem hívunk setLoading(false) redirect esetén — az oldal el fog navigálni
   }
-
-  const isRedirectFlow = shouldUseRedirectAuth()
-  const label = loading
-    ? isRedirectFlow ? 'Átirányítás...' : 'Bejelentkezés...'
-    : 'Folytatás Google fiókkal'
 
   return (
     <button
@@ -66,7 +56,7 @@ export default function GoogleLoginButton({ onError }: GoogleLoginButtonProps) {
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
         </svg>
       )}
-      <span>{label}</span>
+      <span>{loading ? 'Bejelentkezés...' : 'Folytatás Google fiókkal'}</span>
     </button>
   )
 }

@@ -6,7 +6,6 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore'
 import auth from '@/lib/firebase/auth'
 import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
-import { handleGoogleRedirectResult } from '@/services/auth.service'
 import { AuthContext } from '@/hooks/useAuth'
 import type { UserProfile } from '@/types'
 
@@ -30,49 +29,23 @@ async function ensureProfileExists(user: User): Promise<void> {
 }
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]                 = useState<User | null>(null)
-  const [profile, setProfile]           = useState<UserProfile | null>(null)
-  const [loading, setLoading]           = useState(true)
+  const [user, setUser]                     = useState<User | null>(null)
+  const [profile, setProfile]               = useState<UserProfile | null>(null)
+  const [loading, setLoading]               = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
 
-  // ── Auth inicializálás ─────────────────────────────────────────────────────
-  // KRITIKUS SORREND:
-  //   1. handleGoogleRedirectResult() — awaitelni KELL, mielőtt az auth listener
-  //      feliratkozik. Ha nem, az onAuthStateChanged null-lal tüzel redirect
-  //      visszatéréskor (a token csere még folyamatban), az AppLayout loginra dob,
-  //      majd mire a redirect result feldolgozódna, már nincs hova visszatérni.
-  //   2. onAuthStateChanged feliratkozás — csak a redirect result után.
+  // ── Auth state figyelés ────────────────────────────────────────────────────
+  // signInWithPopup-ot használunk (nem redirect), ezért nincs getRedirectResult
+  // race condition — az onAuthStateChanged egyszerűen a popup bezárása után tüzel.
   useEffect(() => {
-    let unsubAuth: (() => void) | null = null
-    let cancelled = false
-
-    async function init() {
-      // 1. Redirect visszatérés kezelése (Google redirect flow)
-      try {
-        await handleGoogleRedirectResult()
-      } catch (err) {
-        // Redirect result hibák nem kritikusak — lehet, hogy nem volt redirect
-        console.error('[Auth] redirect result hiba:', err)
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser)
+      setLoading(false)
+      if (!firebaseUser) {
+        setProfile(null)
       }
-
-      if (cancelled) return
-
-      // 2. Auth state listener — csak a redirect result feldolgozása után
-      unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
-        setUser(firebaseUser)
-        setLoading(false)
-        if (!firebaseUser) {
-          setProfile(null)
-        }
-      })
-    }
-
-    init()
-
-    return () => {
-      cancelled = true
-      unsubAuth?.()
-    }
+    })
+    return () => unsubscribe()
   }, [])
 
   // ── Firestore profil figyelés ──────────────────────────────────────────────
@@ -82,16 +55,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     setProfileLoading(true)
     const userRef = doc(db, COLLECTIONS.USERS, user.uid)
 
-    const unsubProfile = onSnapshot(
+    const unsubscribe = onSnapshot(
       userRef,
       async (snapshot) => {
         if (snapshot.exists()) {
           setProfile(snapshot.data() as UserProfile)
           setProfileLoading(false)
         } else {
-          // Dokumentum nem létezik — létrehozzuk, onSnapshot újra tüzel
           try {
             await ensureProfileExists(user)
+            // onSnapshot automatikusan újra lefut a setDoc után
           } catch (err) {
             console.error('[Auth] profil létrehozás sikertelen:', err)
             setProfileLoading(false)
@@ -104,7 +77,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
     )
 
-    return () => unsubProfile()
+    return () => unsubscribe()
   }, [user])
 
   return (
