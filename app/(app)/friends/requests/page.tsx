@@ -8,8 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 import { ROUTES } from '@/lib/constants'
 
 export default function FriendRequestsPage() {
-  const { incoming, outgoing, loading, acceptRequest, rejectRequest, cancelRequest } =
-    useFriends()
+  const { incoming, outgoing, loading, acceptRequest, rejectRequest, cancelRequest } = useFriends()
   const { toast } = useToast()
 
   async function handleAccept(id: string) {
@@ -31,49 +30,38 @@ export default function FriendRequestsPage() {
     <>
       <TopBar title="Barátkérések" showBack backHref={ROUTES.FRIENDS} />
 
-      <div className="px-4 py-4 flex flex-col gap-6 max-w-lg mx-auto">
+      <div className="px-4 py-5 flex flex-col gap-5 max-w-lg mx-auto">
         {loading ? (
-          <div className="flex justify-center py-8">
+          <div className="flex justify-center py-16">
             <Spinner size="lg" />
           </div>
         ) : (
           <>
-            {/* Bejövő kérések */}
             <section className="flex flex-col gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
                 Bejövő kérések
                 {incoming.length > 0 && (
-                  <span className="ml-2 text-primary-600">{incoming.length}</span>
+                  <span className="ml-2 text-primary-500">{incoming.length}</span>
                 )}
-              </h2>
+              </p>
               {incoming.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nincs bejövő kérésed.</p>
+                <p className="text-sm text-muted-foreground px-0.5">Nincs bejövő kérésed.</p>
               ) : (
-                <FriendRequestList
-                  requests={incoming}
-                  type="incoming"
-                  onAccept={handleAccept}
-                  onReject={handleReject}
-                />
+                <FriendRequestList requests={incoming} type="incoming" onAccept={handleAccept} onReject={handleReject} />
               )}
             </section>
 
-            {/* Kimenő kérések */}
             <section className="flex flex-col gap-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
                 Elküldött kérések
                 {outgoing.length > 0 && (
                   <span className="ml-2 text-muted-foreground">{outgoing.length}</span>
                 )}
-              </h2>
+              </p>
               {outgoing.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nincs folyamatban lévő kérésed.</p>
+                <p className="text-sm text-muted-foreground px-0.5">Nincs folyamatban lévő kérésed.</p>
               ) : (
-                <FriendRequestList
-                  requests={outgoing}
-                  type="outgoing"
-                  onCancel={handleCancel}
-                />
+                <FriendRequestList requests={outgoing} type="outgoing" onCancel={handleCancel} />
               )}
             </section>
           </>

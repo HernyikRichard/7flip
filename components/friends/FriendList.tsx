@@ -15,20 +15,16 @@ export default function FriendList({ friendships, currentUid, onRemove }: Friend
 
   async function handleRemove(friendshipId: string) {
     setRemovingId(friendshipId)
-    try {
-      await onRemove(friendshipId)
-    } finally {
-      setRemovingId(null)
-    }
+    try { await onRemove(friendshipId) }
+    finally { setRemovingId(null) }
   }
 
   if (friendships.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface px-4 py-8 text-center">
-        <p className="text-muted-foreground">Még nincsenek barátaid.</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          Keress rá valakire felhasználónév alapján!
-        </p>
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <span className="text-4xl">👥</span>
+        <p className="font-semibold text-foreground">Még nincsenek barátaid</p>
+        <p className="text-sm text-muted-foreground">Keress rá valakire felhasználónév alapján!</p>
       </div>
     )
   }
@@ -36,11 +32,9 @@ export default function FriendList({ friendships, currentUid, onRemove }: Friend
   return (
     <div className="flex flex-col gap-2">
       {friendships.map((friendship) => {
-        // A másik user adatai
         const friendUid = friendship.userIds.find((id) => id !== currentUid)!
         const friend = friendship.users[friendUid]
         if (!friend) return null
-
         return (
           <FriendCard
             key={friendship.id}
