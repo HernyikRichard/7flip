@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useGames } from '@/hooks/useGames'
 import TopBar from '@/components/layout/TopBar'
 import GameCard from '@/components/games/GameCard'
-import Button from '@/components/ui/Button'
 import Spinner from '@/components/ui/Spinner'
 import { ROUTES } from '@/lib/constants'
 
@@ -23,7 +22,7 @@ export default function GamesPage() {
         right={
           <button
             onClick={() => router.push(ROUTES.GAMES_NEW)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-primary-600 hover:bg-muted text-xl font-bold"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-primary-500 hover:bg-muted text-2xl font-bold transition-colors active:scale-90"
             aria-label="Új játék"
           >
             +
@@ -31,26 +30,27 @@ export default function GamesPage() {
         }
       />
 
-      <div className="px-4 py-4 flex flex-col gap-4 max-w-lg mx-auto">
+      <div className="px-4 py-5 flex flex-col gap-3 max-w-lg mx-auto">
         {loading ? (
-          <div className="flex justify-center py-12">
+          <div className="flex justify-center py-16">
             <Spinner size="lg" />
           </div>
         ) : activeGames.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 py-16 text-center">
-            <p className="text-4xl">🎮</p>
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <span className="text-5xl">🎮</span>
             <p className="font-semibold text-foreground">Nincs aktív játék</p>
             <p className="text-sm text-muted-foreground">Indíts egy új játékot a barátaiddal!</p>
-            <Button onClick={() => router.push(ROUTES.GAMES_NEW)}>
+            <button
+              onClick={() => router.push(ROUTES.GAMES_NEW)}
+              className="mt-1 rounded-2xl bg-primary-500 hover:bg-primary-600 active:scale-[0.98] transition-all px-6 py-3 text-sm font-bold text-white shadow-md shadow-primary-500/20"
+            >
               + Új játék indítása
-            </Button>
+            </button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {activeGames.map((game) => (
-              <GameCard key={game.id} game={game} currentUid={user.uid} />
-            ))}
-          </div>
+          activeGames.map((game) => (
+            <GameCard key={game.id} game={game} currentUid={user.uid} />
+          ))
         )}
       </div>
     </>

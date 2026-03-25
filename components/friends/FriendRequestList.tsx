@@ -14,22 +14,13 @@ interface FriendRequestListProps {
   onCancel?: (id: string) => Promise<void>
 }
 
-export default function FriendRequestList({
-  requests,
-  type,
-  onAccept,
-  onReject,
-  onCancel,
-}: FriendRequestListProps) {
+export default function FriendRequestList({ requests, type, onAccept, onReject, onCancel }: FriendRequestListProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
   async function handle(id: string, action: (id: string) => Promise<void>) {
     setLoadingId(id)
-    try {
-      await action(id)
-    } finally {
-      setLoadingId(null)
-    }
+    try { await action(id) }
+    finally { setLoadingId(null) }
   }
 
   if (requests.length === 0) return null
@@ -39,19 +30,15 @@ export default function FriendRequestList({
       {requests.map((req) => (
         <div
           key={req.id}
-          className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3.5 card-shadow"
         >
-          <Avatar
-            src={req.fromPhotoURL}
-            name={req.fromDisplayName}
-            size="md"
-          />
+          <Avatar src={req.fromPhotoURL} name={req.fromDisplayName} size="md" />
 
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate">
+            <p className="font-semibold text-[15px] text-foreground truncate leading-tight">
               {req.fromDisplayName}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {formatRelativeTime(toDate(req.createdAt) ?? new Date())}
             </p>
           </div>
@@ -59,31 +46,16 @@ export default function FriendRequestList({
           <div className="flex gap-2 shrink-0">
             {type === 'incoming' && onAccept && onReject && (
               <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  loading={loadingId === req.id}
-                  onClick={() => handle(req.id, onReject)}
-                >
+                <Button size="sm" variant="ghost" loading={loadingId === req.id} onClick={() => handle(req.id, onReject)}>
                   Elutasít
                 </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  loading={loadingId === req.id}
-                  onClick={() => handle(req.id, onAccept)}
-                >
+                <Button size="sm" variant="primary" loading={loadingId === req.id} onClick={() => handle(req.id, onAccept)}>
                   Elfogad
                 </Button>
               </>
             )}
             {type === 'outgoing' && onCancel && (
-              <Button
-                size="sm"
-                variant="ghost"
-                loading={loadingId === req.id}
-                onClick={() => handle(req.id, onCancel)}
-              >
+              <Button size="sm" variant="ghost" loading={loadingId === req.id} onClick={() => handle(req.id, onCancel)}>
                 Visszavon
               </Button>
             )}
