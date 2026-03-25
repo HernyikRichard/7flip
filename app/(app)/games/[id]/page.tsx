@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useGameDetail } from '@/hooks/useGameDetail'
-import { startRound, forceFinishGame } from '@/services/game.service'
+import { startRound, forceFinishGame, rematchGame } from '@/services/game.service'
 import {
   drawCardForPlayer,
   drawMultipleCardsForPlayer,
@@ -39,6 +39,7 @@ export default function GamePage() {
   const [flipFourCount, setFlipFourCount] = useState(0)
   const [busy, setBusy] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
+  const [rematching, setRematching] = useState(false)
 
   if (!user) return null
   if (loading) return <div className="flex min-h-screen items-center justify-center"><Spinner size="lg" /></div>
@@ -164,6 +165,17 @@ export default function GamePage() {
     finally { setBusy(false) }
   }
 
+  async function handleRematch() {
+    setRematching(true)
+    try {
+      const newGameId = await rematchGame(id, user!.uid)
+      router.push(`/games/${newGameId}`)
+    } catch (err) {
+      console.error(err)
+      setRematching(false)
+    }
+  }
+
   async function handleFinishGame() {
     const leader = [...game!.players].sort((a, b) => b.totalScore - a.totalScore)[0]
     if (!leader) return
@@ -188,48 +200,76 @@ export default function GamePage() {
 
         {/* Fejléc */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">{game.roundCount}. kör · Cél: {game.targetScore} pont</p>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              game.gameMode === 'brutal'
-                ? 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
-                : game.gameMode === 'revenge'
-                ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                : 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300'
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+              game.gameMode === 'brutal'  ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300' :
+              game.gameMode === 'revenge' ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' :
+                                            'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
             }`}>
               {GAME_MODE_META[game.gameMode ?? 'classic'].label}
             </span>
+            <p className="text-xs text-muted-foreground">{game.roundCount}. kör · {game.targetScore} p</p>
           </div>
           <GameStatusBadge status={game.status} />
         </div>
 
-        {/* Győztes */}
+        {/* Győztes + rematch */}
         {isFinished && winner && (
-          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 px-4 py-4 text-center">
-            <p className="text-3xl">🏆</p>
-            <p className="font-bold text-amber-700 dark:text-amber-300 mt-1">{winner.displayName}</p>
-            <p className="text-sm text-muted-foreground">{winner.totalScore} pont</p>
+          <div className="flex flex-col gap-3">
+            <div className="rounded-2xl bg-amber-50 dark:bg-amber-500/[0.08] border border-amber-200 dark:border-amber-500/30 px-4 py-5 text-center card-shadow">
+              <p className="text-4xl">🏆</p>
+              <p className="font-bold text-lg text-amber-800 dark:text-amber-200 mt-2">{winner.displayName} nyerte!</p>
+              <p className="text-sm text-amber-600 dark:text-amber-400/80 mt-0.5">{winner.totalScore} pont · {game.roundCount} kör</p>
+            </div>
+            <button
+              disabled={rematching}
+              onClick={handleRematch}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-primary-400 bg-primary-500/10 py-3.5 text-sm font-bold text-primary-600 dark:text-primary-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {rematching ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Létrehozás...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-base">🔄</span>
+                  <span>Visszavágó — ugyanazok, ugyanaz a mód</span>
+                </>
+              )}
+            </button>
           </div>
         )}
 
         {/* Ranglista */}
         {(!isInRound && !isAwaiting) && (
           <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Állás</h2>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">Állás</p>
             {sorted.map((player, i) => (
-              <div key={player.uid} className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
-                player.uid === user.uid ? 'border-primary-300 bg-primary-50 dark:bg-primary-950/50' : 'border-border bg-surface'
-              }`}>
-                <span className="w-6 text-center font-bold text-sm text-muted-foreground">
-                  {i === 0 && isFinished ? '🏆' : `#${i + 1}`}
+              <div
+                key={player.uid}
+                className={`flex items-center gap-3 rounded-2xl border-2 px-4 py-3 card-shadow ${
+                  player.uid === user.uid
+                    ? 'border-primary-400/50 bg-primary-500/[0.06]'
+                    : 'border-border bg-surface'
+                }`}
+              >
+                <span className="w-7 text-center shrink-0">
+                  {i === 0 && isFinished ? '🏆' : <span className="text-sm font-bold text-muted-foreground">#{i + 1}</span>}
                 </span>
                 <Avatar src={player.photoURL} name={player.displayName} size="sm" />
-                <span className="flex-1 font-medium text-foreground truncate">
-                  {player.displayName} {player.uid === user.uid && '(te)'}
+                <span className="flex-1 font-semibold text-[15px] text-foreground truncate leading-tight">
+                  {player.displayName}
+                  {player.uid === user.uid && <span className="text-xs font-normal text-muted-foreground ml-1">(te)</span>}
                 </span>
-                <div className="text-right">
-                  <p className="font-bold text-foreground">{player.totalScore}</p>
-                  <p className="text-xs text-muted-foreground">pont · {player.roundsPlayed} kör</p>
+                <div className="text-right shrink-0">
+                  <p className="font-bold tabular-nums text-foreground">
+                    {player.totalScore}<span className="text-xs font-normal text-muted-foreground ml-0.5">p</span>
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">{player.roundsPlayed} kör</p>
                 </div>
               </div>
             ))}
