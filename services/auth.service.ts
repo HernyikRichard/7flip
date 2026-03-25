@@ -2,8 +2,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   GoogleAuthProvider,
   signOut,
   updateProfile,
@@ -13,7 +11,6 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import auth from '@/lib/firebase/auth'
 import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
-import { shouldUseRedirectAuth } from '@/lib/utils/device'
 import type { UserProfile } from '@/types'
 
 const googleProvider = new GoogleAuthProvider()
@@ -33,7 +30,7 @@ async function createUserProfile(user: User): Promise<void> {
     uid:         user.uid,
     email:       user.email ?? '',
     displayName: user.displayName ?? 'Névtelen',
-    username:    user.uid.slice(0, 12), // ideiglenes, profilban szerkeszthető
+    username:    user.uid.slice(0, 12),
     photoURL:    user.photoURL ?? null,
     gamesPlayed: 0,
     gamesWon:    0,
@@ -53,7 +50,6 @@ export async function registerWithEmail(
   const { user } = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(user, { displayName })
   await createUserProfile(user)
-  // displayName frissítése a Firestore-ban is (updateProfile után van user.displayName)
   await setDoc(doc(db, COLLECTIONS.USERS, user.uid), { displayName }, { merge: true })
   return user
 }
@@ -65,40 +61,25 @@ export async function loginWithEmail(email: string, password: string): Promise<U
 }
 
 // ── Google bejelentkezés ──────────────────────────────────────────────────────
-// Mobilon / PWA-ban redirect, asztali böngészőn popup
+// Kizárólag signInWithPopup — a signInWithRedirect megbízhatatlan modern
+// mobilböngészőkben (iOS Safari ITP + Chrome Privacy Sandbox cross-origin
+// cookie-okat blokkol, emiatt getRedirectResult() null-t ad vissza).
 export async function loginWithGoogle(): Promise<User | null> {
-  if (shouldUseRedirectAuth()) {
-    // signInWithRedirect inicializálja az átirányítást.
-    // A függvény visszatér, de utána a böngésző azonnal navigál el
-    // → a hívó oldalon a loading state marad, ne hívj setLoading(false)-t.
-    await signInWithRedirect(auth, googleProvider)
-    return null
-  }
-
   try {
     const { user } = await signInWithPopup(auth, googleProvider)
     await createUserProfile(user)
     return user
   } catch (err: unknown) {
-    // A user bezárta a popupot — nem valódi hiba
     const code = (err as { code?: string }).code
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    // User bezárta a popup-ot — nem hiba, csak visszavonás
+    if (
+      code === 'auth/popup-closed-by-user' ||
+      code === 'auth/cancelled-popup-request'
+    ) {
       return null
     }
     throw err
   }
-}
-
-// ── Google redirect eredmény feldolgozása ─────────────────────────────────────
-// Ezt az AuthProvider-ben AWAIT-elni kell, MIELŐTT az onAuthStateChanged
-// feliratkozik — különben race condition keletkezik (null user → login redirect).
-export async function handleGoogleRedirectResult(): Promise<User | null> {
-  const result = await getRedirectResult(auth)
-  if (result?.user) {
-    await createUserProfile(result.user)
-    return result.user
-  }
-  return null
 }
 
 // ── Kijelentkezés ─────────────────────────────────────────────────────────────

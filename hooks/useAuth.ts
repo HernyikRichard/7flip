@@ -1,12 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { onAuthStateChanged, type User } from 'firebase/auth'
-import { doc, onSnapshot } from 'firebase/firestore'
-import auth from '@/lib/firebase/auth'
-import db from '@/lib/firebase/firestore'
-import { COLLECTIONS } from '@/lib/constants'
-import { handleGoogleRedirectResult } from '@/services/auth.service'
+import { createContext, useContext } from 'react'
+import type { User } from 'firebase/auth'
 import type { UserProfile } from '@/types'
 
 interface AuthContextValue {
