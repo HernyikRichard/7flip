@@ -434,6 +434,41 @@ export async function getGameRounds(gameId: string): Promise<Round[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Round)
 }
 
+// ── Visszavágó: új játék azonos játékosokkal + módban ────────────────────────
+export async function rematchGame(gameId: string, initiatorUid: string): Promise<string> {
+  const game = await getGame(gameId)
+  if (!game) throw new Error('Game not found')
+
+  const config = getGameModeConfig(game.gameMode ?? 'classic')
+
+  const ref = await addDoc(collection(db, COLLECTIONS.GAMES), {
+    createdBy: initiatorUid,
+    status: 'waiting_for_players',
+    players: game.players.map((p) => ({
+      uid:          p.uid,
+      displayName:  p.displayName,
+      photoURL:     p.photoURL ?? null,
+      totalScore:   0,
+      roundsPlayed: 0,
+      // Visszavágóban mindenki automatikusan "elfogadta" — lobby phase kimarad
+      inviteStatus: 'accepted' as const,
+    })),
+    playerUids:   game.playerUids,
+    roundCount:   0,
+    targetScore:  config.targetScore,
+    gameMode:     game.gameMode ?? 'classic',
+    pendingAction: null,
+    currentRoundId: null,
+    rulesVersion: 2,
+    rematchOf:    gameId,
+    createdAt:    serverTimestamp(),
+    finishedAt:   null,
+    winnerId:     null,
+  })
+
+  return ref.id
+}
+
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────
 export async function forceFinishGame(gameId: string, winnerId: string): Promise<void> {
   const game = await getGame(gameId)
