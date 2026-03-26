@@ -51,16 +51,3 @@ export function getGameModeConfig(
     : CLASSIC_MODE_CONFIG
 }
 
-// ── UI szövegek ────────────────────────────────────────────────────────────
-
-export const GAME_MODE_LABELS: Record<GameMode, string> = {
-  classic: 'Classic',
-  revenge: 'Revenge',
-  brutal:  'Brutal',
-}
-
-export const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
-  classic: 'Cél: 200 pont · Bust = 0 · Flip 7: +15',
-  revenge: 'Cél: 200 pont · Bust = −pont (max −30) · Flip 7: +15',
-  brutal:  'Cél: 200 pont · Bust = −pont (max −50) · negatív megengedett · Flip 7: +15 v. −15',
-}

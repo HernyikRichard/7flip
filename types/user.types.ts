@@ -12,8 +12,5 @@ export interface UserProfile {
   gamesWon: number
 }
 
-// Firestore dokumentum létrehozásához — uid és timestamp nélkül
-export type CreateUserProfileData = Omit<UserProfile, 'uid' | 'createdAt' | 'updatedAt'>
-
 // Profil frissítéshez — csak a módosítható mezők
 export type UpdateUserProfileData = Partial<Pick<UserProfile, 'displayName' | 'username' | 'photoURL'>>

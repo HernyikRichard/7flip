@@ -3,7 +3,7 @@
 // freeze / flip_three / second_chance
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { RoundPlayerState, PendingAction } from '@/types/game.types'
+import type { RoundPlayerState } from '@/types/game.types'
 import type { ActionContext, ActionResult, ActionEvent } from '@/lib/actionResolver'
 
 // ── FREEZE ────────────────────────────────────────────────────────────────────
@@ -105,42 +105,3 @@ export function handleSecondChance({ playerStates, action }: ActionContext): Act
   }
 }
 
-// ── PendingAction builder segédfüggvény ───────────────────────────────────────
-
-export function buildClassicActionPending(
-  actionType: 'freeze' | 'flip_three' | 'second_chance',
-  playedByUid: string,
-  availableTargetUids: string[]
-): Omit<PendingAction, 'id' | 'createdAt'> {
-  const base = {
-    actionType,
-    playedByUid,
-    requiresTargetPlayer: false,
-    availableTargetUids:  [] as string[],
-    resolvedTargetUid:    null,
-    requiresSourceCard:   false,
-    requiresTargetCard:   false,
-    availableCards:       [],
-    resolvedSourceCard:   null,
-    resolvedTargetCard:   null,
-    flipFourRemaining:    null as number | null,
-    flipFourCardQueue:    [] as import('@/types/card.types').Card[],
-  }
-
-  switch (actionType) {
-    case 'freeze':
-      return { ...base, requiresTargetPlayer: true, availableTargetUids }
-    case 'flip_three':
-      return {
-        ...base,
-        requiresTargetPlayer: true,
-        availableTargetUids,
-        flipFourRemaining: 3,  // reusing the flipFour counter for flip_three
-      }
-    case 'second_chance':
-      // second_chance-t a kijátszó magának veszi — nincs target választás
-      return base
-    default:
-      return base
-  }
-}

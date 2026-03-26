@@ -8,8 +8,6 @@ export const COLLECTIONS = {
   SCAN_RESULTS: 'scanResults',
 } as const
 
-export const APP_NAME = '7flip'
-
 export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',

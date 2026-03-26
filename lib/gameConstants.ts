@@ -1,4 +1,4 @@
-import type { ActionType, ClassicActionType, RevengeActionType, ModifierType, NumberCardVariant } from '@/types/card.types'
+import type { ActionType, ModifierType, NumberCardVariant } from '@/types/card.types'
 
 // ── Játékos státusz labelek ────────────────────────────────────────────────
 
@@ -40,20 +40,6 @@ export const ACTION_CARD_COLORS: Record<ActionType, string> = {
   second_chance: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
 }
 
-export const CLASSIC_ACTION_CARD_LABELS: Record<ClassicActionType, string> = {
-  freeze:        ACTION_CARD_LABELS.freeze,
-  flip_three:    ACTION_CARD_LABELS.flip_three,
-  second_chance: ACTION_CARD_LABELS.second_chance,
-}
-
-export const REVENGE_ACTION_CARD_LABELS: Record<RevengeActionType, string> = {
-  just_one_more: ACTION_CARD_LABELS.just_one_more,
-  swap:          ACTION_CARD_LABELS.swap,
-  steal:         ACTION_CARD_LABELS.steal,
-  discard:       ACTION_CARD_LABELS.discard,
-  flip_four:     ACTION_CARD_LABELS.flip_four,
-}
-
 // ── Módosítókártyák megjelenítési neve ────────────────────────────────────
 
 export const MODIFIER_CARD_LABELS: Record<ModifierType, string> = {
@@ -74,10 +60,8 @@ export const MODIFIER_CARD_COLORS: Record<ModifierType, string> = {
 
 // ── Számkártyák UI-stílusa ────────────────────────────────────────────────
 
-export const NUMBER_CARD_COLOR = 'bg-surface text-foreground border-border'
-
 export const SPECIAL_NUMBER_COLORS: Record<NumberCardVariant, string> = {
-  normal:   NUMBER_CARD_COLOR,
+  normal:   'bg-surface text-foreground border-border',
   zero:     'bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950 dark:text-sky-300',
   unlucky7: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-300',
   lucky13:  'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300',
@@ -90,17 +74,3 @@ export const SPECIAL_NUMBER_LABELS: Record<NumberCardVariant, string> = {
   lucky13:  '🍀 Lucky 13',
 }
 
-// ── Action card rövid leírása (UI tooltiphez) ──────────────────────────────
-
-export const ACTION_CARD_DESCRIPTIONS: Record<ActionType, string> = {
-  // Revenge / Brutal
-  just_one_more: 'Célpont kap 1 lapot, majd stayed lesz',
-  swap:          'Két face-up lap helyet cserél (bustot okozhat)',
-  steal:         'Egy face-up lapot elveszel a saját kezedhez',
-  discard:       'Célpont egy lapját eldobod',
-  flip_four:     'Célpont kap 4 lapot egyenként',
-  // Classic
-  freeze:        'Célpont egy körig nem húzhat',
-  flip_three:    'Célpont kap 3 lapot egyenként',
-  second_chance: 'Egy bustot megakadályoz (egyszeri)',
-}
