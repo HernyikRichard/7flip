@@ -183,8 +183,3 @@ export function formatScoreBreakdown(b: ScoreBreakdown): string {
   return parts.join('  ·  ')
 }
 
-// ── Kumulatív összeg ───────────────────────────────────────────────────────
-
-export function calculateTotalScore(roundScores: number[]): number {
-  return roundScores.reduce((s, v) => s + v, 0)
-}

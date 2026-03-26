@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import storage from '@/lib/firebase/storage'
 
 // Kép átméretezése canvas-szal feltöltés előtt (max 400x400px, 80% minőség)
@@ -31,7 +31,3 @@ export async function uploadProfilePhoto(uid: string, file: File): Promise<strin
   return getDownloadURL(storageRef)
 }
 
-export async function deleteProfilePhoto(uid: string): Promise<void> {
-  const storageRef = ref(storage, `avatars/${uid}/profile.jpg`)
-  await deleteObject(storageRef).catch(() => {}) // ha nem létezik, nem hiba
-}

@@ -2,9 +2,9 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react'
 
-export type CameraPhase = 'requesting' | 'preview' | 'captured' | 'error'
+type CameraPhase = 'requesting' | 'preview' | 'captured' | 'error'
 
-export interface UseCameraReturn {
+interface UseCameraReturn {
   phase: CameraPhase
   errorMessage: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
