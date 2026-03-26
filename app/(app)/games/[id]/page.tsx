@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useGameDetail } from '@/hooks/useGameDetail'
@@ -26,6 +26,7 @@ import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
+import { fireFlip7Confetti } from '@/lib/confetti'
 import type { Card } from '@/types/card.types'
 
 export default function GamePage() {
@@ -40,6 +41,24 @@ export default function GamePage() {
   const [busy, setBusy] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [rematching, setRematching] = useState(false)
+
+  // ── Flip 7 konfetti ────────────────────────────────────────────────────────
+  // Nyomon követjük melyik (roundId + uid) kombóra már sült el konfetti,
+  // hogy körváltásnál újra tudjon sülni, de egy körben csak egyszer.
+  const firedFlip7Ref = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentRound) return
+    let fired = false
+    Object.entries(currentRound.playerStates).forEach(([uid, state]) => {
+      const key = `${currentRound.id}:${uid}`
+      if (state.status === 'flip7' && !firedFlip7Ref.current.has(key)) {
+        firedFlip7Ref.current.add(key)
+        fired = true
+      }
+    })
+    if (fired) fireFlip7Confetti()
+  }, [currentRound])
 
   if (!user) return null
   if (loading) return <div className="flex min-h-screen items-center justify-center"><Spinner size="lg" /></div>
