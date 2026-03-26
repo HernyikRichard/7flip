@@ -207,6 +207,8 @@ export interface GamePlayer {
   totalScore: number
   roundsPlayed: number
   inviteStatus: 'pending' | 'accepted' | 'declined'
+  /** true ha vendég (nem regisztrált) játékos — a lobby leader irányítja */
+  isGuest?: boolean
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

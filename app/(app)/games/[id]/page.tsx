@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useGameDetail } from '@/hooks/useGameDetail'
@@ -26,6 +26,7 @@ import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
+import { fireFlip7Confetti } from '@/lib/confetti'
 import type { Card } from '@/types/card.types'
 
 export default function GamePage() {
@@ -40,6 +41,24 @@ export default function GamePage() {
   const [busy, setBusy] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [rematching, setRematching] = useState(false)
+
+  // ── Flip 7 konfetti ────────────────────────────────────────────────────────
+  // Nyomon követjük melyik (roundId + uid) kombóra már sült el konfetti,
+  // hogy körváltásnál újra tudjon sülni, de egy körben csak egyszer.
+  const firedFlip7Ref = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!currentRound) return
+    let fired = false
+    Object.entries(currentRound.playerStates).forEach(([uid, state]) => {
+      const key = `${currentRound.id}:${uid}`
+      if (state.status === 'flip7' && !firedFlip7Ref.current.has(key)) {
+        firedFlip7Ref.current.add(key)
+        fired = true
+      }
+    })
+    if (fired) fireFlip7Confetti()
+  }, [currentRound])
 
   if (!user) return null
   if (loading) return <div className="flex min-h-screen items-center justify-center"><Spinner size="lg" /></div>
@@ -80,7 +99,9 @@ export default function GamePage() {
   }
 
   function canRecordFor(uid: string): boolean {
-    if (!isInRound || busy) return false
+    if (!isInRound || busy || !game) return false
+    const player = game.players.find((p) => p.uid === uid)
+    if (player?.isGuest) return user?.uid === game.createdBy
     const isOnline = onlineUids.includes(uid)
     return !isOnline || uid === user?.uid
   }
@@ -260,10 +281,14 @@ export default function GamePage() {
                 <span className="w-7 text-center shrink-0">
                   {i === 0 && isFinished ? '🏆' : <span className="text-sm font-bold text-muted-foreground">#{i + 1}</span>}
                 </span>
-                <Avatar src={player.photoURL} name={player.displayName} size="sm" />
+                {player.isGuest
+                  ? <span className="w-8 h-8 flex items-center justify-center rounded-full bg-muted text-base shrink-0">👤</span>
+                  : <Avatar src={player.photoURL} name={player.displayName} size="sm" />
+                }
                 <span className="flex-1 font-semibold text-[15px] text-foreground truncate leading-tight">
                   {player.displayName}
                   {player.uid === user.uid && <span className="text-xs font-normal text-muted-foreground ml-1">(te)</span>}
+                  {player.isGuest && <span className="text-[10px] font-normal text-muted-foreground ml-1">vendég</span>}
                 </span>
                 <div className="text-right shrink-0">
                   <p className="font-bold tabular-nums text-foreground">
@@ -395,8 +420,14 @@ export default function GamePage() {
             </p>
             {game.players.map((p) => (
               <div key={p.uid} className="flex items-center gap-3">
-                <Avatar src={p.photoURL} name={p.displayName} size="sm" />
+                {p.isGuest
+                  ? <span className="w-8 h-8 flex items-center justify-center rounded-full bg-muted text-base shrink-0">👤</span>
+                  : <Avatar src={p.photoURL} name={p.displayName} size="sm" />
+                }
                 <span className="flex-1 text-sm text-foreground">{p.displayName}</span>
+                {p.isGuest && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted rounded-full px-2 py-0.5">Vendég</span>
+                )}
               </div>
             ))}
           </div>
