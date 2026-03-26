@@ -47,7 +47,7 @@ export function rebuildCardLists(state: RoundPlayerState): RoundPlayerState {
   const lucky13Count = numberCards.filter((v) => v === 13).length
   const zeroLocked   = numberCards.includes(0)
 
-  return { ...state, numberCards, modifierCards, lucky13Count, zeroLocked }
+  return { ...state, numberCards, modifierCards, lucky13Count, zeroLocked, forcedHit: zeroLocked }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,8 +112,6 @@ export function applyCardToPlayer(
         ...playerState,
         handCards:  [...playerState.handCards, handCard],
         zeroLocked: true,
-        forcedHit:  false, // forcedHit: a KÖVETKEZŐ saját körig kell húzni
-        // (a service állítja be forcedHit=true az adott játékosra)
       })
       return { outcome: 'zero_added', updatedState: updated }
     }

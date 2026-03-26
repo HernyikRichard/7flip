@@ -190,7 +190,7 @@ const handleSwap: ActionHandler = ({ playerStates, action, config }) => {
 // Egy face-up lap átkerül a kijátszó kezébe.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const handleSteal: ActionHandler = ({ playerStates, action }) => {
+const handleSteal: ActionHandler = ({ playerStates, action, config }) => {
   const { playedByUid, resolvedTargetCard } = action
   if (!resolvedTargetCard) throw new Error('Steal: target kártya szükséges')
 
@@ -204,19 +204,41 @@ const handleSteal: ActionHandler = ({ playerStates, action }) => {
   states[playedByUid].handCards.push(stolen)
   states[playedByUid] = rebuildCardLists(states[playedByUid])
 
+  const events: ActionEvent[] = [{
+    eventType:  'steal_executed',
+    actorUid:   playedByUid,
+    targetUid:  tgtOwner,
+    card:        stolen.card,
+    sourceCard:  null,
+    targetCard:  resolvedTargetCard,
+    payload:     {},
+  }]
+
+  // Bust-ellenőrzés a tolvajnál (ellopott lap duplikátumot okozhat)
+  const bustBreakdown = checkBustAfterCardChange(states[playedByUid], config)
+  if (bustBreakdown) {
+    states[playedByUid] = {
+      ...states[playedByUid],
+      status:         'busted',
+      roundScore:     bustBreakdown.total,
+      scoreBreakdown: bustBreakdown,
+    }
+    events.push({
+      eventType:  'player_busted',
+      actorUid:   playedByUid,
+      targetUid:  playedByUid,
+      card:        null,
+      sourceCard:  null,
+      targetCard:  null,
+      payload:     { causedBySteal: true },
+    })
+  }
+
   return {
     updatedStates:     states,
     nextPendingAction: null,
-    events: [{
-      eventType:  'steal_executed',
-      actorUid:   playedByUid,
-      targetUid:  tgtOwner,
-      card:        stolen.card,
-      sourceCard:  null,
-      targetCard:  resolvedTargetCard,
-      payload:     {},
-    }],
-    roundOver: false,
+    events,
+    roundOver: checkRoundOver(states),
   }
 }
 
