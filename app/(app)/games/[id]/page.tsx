@@ -227,10 +227,17 @@ export default function GamePage() {
     }
   }
 
-  function handleCardActionCancel() {
+  async function handleCardActionCancel() {
+    if (!currentRound || !pendingAction) return
+    if (pendingAction.availableCards.length === 0) {
+      // Nincs választható kártya — akció hatástalan, pendingAction törlése
+      setBusy(true)
+      try { await clearPendingAction(id, currentRound.id) }
+      finally { setBusy(false) }
+      return
+    }
     // Swap: forrás kiválasztás resetelése (2. lépésből vissza az 1.-be)
     setSwapSourceCard(null)
-    // Discard step 2: nincs könnyű visszalépés — a player kénytelen kártyát választani
   }
 
   async function handleBrutalFlip7Choice(targetUid: string) {
