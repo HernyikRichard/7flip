@@ -15,6 +15,7 @@ import {
   selectActionTargetPlayer,
   resolveCardAction,
   resolveBrutalFlip7Choice,
+  clearPendingAction,
   finishRound,
 } from '@/services/round.service'
 import { usePresence } from '@/hooks/usePresence'
@@ -46,6 +47,8 @@ export default function GamePage() {
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [rematching, setRematching] = useState(false)
   const [swapSourceCard, setSwapSourceCard] = useState<CardRef | null>(null)
+  // Just One More: után auto-stand kell a célpontnál
+  const [jomTargetUid, setJomTargetUid] = useState<string | null>(null)
 
   // ── Flip 7 konfetti ────────────────────────────────────────────────────────
   // Nyomon követjük melyik (roundId + uid) kombóra már sült el konfetti,
@@ -128,14 +131,29 @@ export default function GamePage() {
     setPickerForUid(null)
     try {
       if (isFlipMultiActive && pendingAction?.resolvedTargetUid) {
-        await drawCardForPlayer(id, currentRound.id, pendingAction.resolvedTargetUid, card, currentRound.playerStates, gameMode)
+        const flipTarget = pendingAction.resolvedTargetUid
+        const outcome = await drawCardForPlayer(id, currentRound.id, flipTarget, card, currentRound.playerStates, gameMode)
         const next = flipFourCount + 1
-        if (next < flipMultiTotal) {
+        const targetDone = outcome === 'busted' || outcome === 'flip7'
+        if (next < flipMultiTotal && !targetDone) {
           setFlipFourCount(next)
-          setPickerForUid(pendingAction.resolvedTargetUid)
+          setPickerForUid(flipTarget)
         } else {
           setFlipFourCount(0)
+          // Flip Four/Three korai vége (bust/flip7): pending action törlése
+          if (targetDone && next < flipMultiTotal) {
+            await clearPendingAction(id, currentRound.id)
+          }
         }
+      } else if (jomTargetUid) {
+        // Just One More: 1 lap + auto-stand
+        const outcome = await drawCardForPlayer(id, currentRound.id, jomTargetUid, card, currentRound.playerStates, gameMode)
+        if (outcome !== 'busted' && outcome !== 'flip7' && outcome !== 'action_pending') {
+          // Friss állapot: csak a célpont state-je változott meg
+          const freshStates = { ...currentRound.playerStates }
+          await standPlayer(id, currentRound.id, jomTargetUid, freshStates)
+        }
+        setJomTargetUid(null)
       } else {
         await drawCardForPlayer(id, currentRound.id, pickerForUid, card, currentRound.playerStates, gameMode)
       }
@@ -171,6 +189,11 @@ export default function GamePage() {
       if (pendingAction.actionType === 'discard') {
         // Discard step 1: játékos kiválasztása → pending action frissül, majd kártya kérés
         await selectActionTargetPlayer(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
+      } else if (pendingAction.actionType === 'just_one_more') {
+        // JOM: pending action feloldása, majd kártyapicker nyitása — 1 lap + auto-stand
+        await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
+        setJomTargetUid(targetUid)
+        setPickerForUid(targetUid)
       } else {
         await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
         if (pendingAction.actionType === 'flip_four' || pendingAction.actionType === 'flip_three') {

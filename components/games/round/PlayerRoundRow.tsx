@@ -231,7 +231,8 @@ export default function PlayerRoundRow({
           </button>
           <button
             onClick={onStand}
-            className="h-11 px-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/5 text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 active:scale-[0.97] transition-all"
+            disabled={state.forcedHit}
+            className="h-11 px-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/5 text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 active:scale-[0.97] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Megállok
           </button>

@@ -15,6 +15,7 @@ import {
   scoreRound,
   isRoundOver,
   applyCardToPlayer,
+  type DrawResult,
 } from '@/lib/gameStateMachine'
 import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
 import { getModeEngine } from '@/lib/game-modes'
@@ -175,9 +176,9 @@ export async function drawCardForPlayer(
   card: Card,
   currentPlayerStates: Record<string, RoundPlayerState>,
   gameMode?: string
-): Promise<void> {
+): Promise<DrawResult['outcome']> {
   const playerState = currentPlayerStates[targetUid]
-  if (!playerState) return
+  if (!playerState) return 'number_added'
 
   const engine = getModeEngine((gameMode as GameMode) ?? 'classic')
   const result = applyCardToPlayer(card, playerState, currentPlayerStates, 0, engine.config)
@@ -188,10 +189,10 @@ export async function drawCardForPlayer(
     const pa = result.pendingAction
     // Swap / Steal hatástalan ha nincs face-up kártya a táblán — skip, kör folytatódik
     if ((pa.actionType === 'swap' || pa.actionType === 'steal') && pa.availableCards.length === 0) {
-      return
+      return result.outcome
     }
     await setPendingAction(gameId, roundId, pa)
-    return
+    return result.outcome
   }
 
   // ── Brutal Flip 7: choice-t kérünk a játékostól (+15 magának v. −15 ellenfélnek) ──
@@ -207,13 +208,14 @@ export async function drawCardForPlayer(
         status: 'awaiting_brutal_flip7',
       }),
     ])
-    return
+    return result.outcome
   }
 
   const newPlayerStates = { ...currentPlayerStates, [targetUid]: result.updatedState }
   if (isRoundOver(newPlayerStates)) {
     await finishRound(gameId, roundId)
   }
+  return result.outcome
 }
 
 // ── Több számkártya egyszerre ─────────────────────────────────────────────────
@@ -265,8 +267,11 @@ export async function standPlayer(
   targetUid: string,
   currentPlayerStates: Record<string, RoundPlayerState>
 ): Promise<void> {
+  const state = currentPlayerStates[targetUid]
+  // Nem állhat meg, ha The Zero miatt kötelező húznia
+  if (state?.forcedHit) return
   const updatedState: RoundPlayerState = {
-    ...currentPlayerStates[targetUid],
+    ...state,
     status: 'stayed',
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
@@ -380,6 +385,11 @@ export async function resolveActionForTarget(
   if (!result.nextPendingAction && isRoundOver(result.updatedStates)) {
     await finishRound(gameId, roundId)
   }
+}
+
+// ── Pending action törlése (pl. Flip Four korai vége bust miatt) ─────────────
+export async function clearPendingAction(gameId: string, roundId: string): Promise<void> {
+  await setPendingAction(gameId, roundId, null)
 }
 
 // ── Discard step 1: target player kiválasztása ───────────────────────────────
