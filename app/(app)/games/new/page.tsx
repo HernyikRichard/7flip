@@ -15,6 +15,10 @@ import { ROUTES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { FriendshipUser, GameMode } from '@/types'
 
+function generateGuestUid(): string {
+  return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
+}
+
 const MODE_ACTIVE: Record<string, { border: string; bg: string; text: string }> = {
   classic: { border: 'border-blue-400',   bg: 'bg-blue-500/[0.06]',   text: 'text-blue-600 dark:text-blue-400'     },
   revenge: { border: 'border-red-400',    bg: 'bg-red-500/[0.06]',    text: 'text-red-600 dark:text-red-400'       },
@@ -27,6 +31,8 @@ export default function NewGamePage() {
   const { friendships } = useFriends()
 
   const [selectedPlayers, setSelectedPlayers] = useState<FriendshipUser[]>([])
+  const [guestPlayers, setGuestPlayers] = useState<{ uid: string; displayName: string }[]>([])
+  const [guestInput, setGuestInput] = useState('')
   const [gameMode, setGameMode] = useState<GameMode>('classic')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +54,17 @@ export default function NewGamePage() {
     )
   }
 
+  function addGuest() {
+    const name = guestInput.trim()
+    if (!name) return
+    setGuestPlayers((prev) => [...prev, { uid: generateGuestUid(), displayName: name }])
+    setGuestInput('')
+  }
+
+  function removeGuest(uid: string) {
+    setGuestPlayers((prev) => prev.filter((g) => g.uid !== uid))
+  }
+
   async function handleCreate() {
     if (!user || !profile) return
     setError(null)
@@ -60,17 +77,29 @@ export default function NewGamePage() {
         username: profile.username,
       }
       const allPlayers = [self, ...selectedPlayers]
+      const guestGamePlayers = guestPlayers.map((g) => ({
+        uid: g.uid,
+        displayName: g.displayName,
+        photoURL: null as null,
+        totalScore: 0,
+        roundsPlayed: 0,
+        inviteStatus: 'accepted' as const,
+        isGuest: true,
+      }))
       const gameId = await createGame({
         createdBy: user.uid,
-        players: allPlayers.map((p) => ({
-          uid: p.uid,
-          displayName: p.displayName,
-          photoURL: p.photoURL ?? null,
-          totalScore: 0,
-          roundsPlayed: 0,
-          inviteStatus: p.uid === user.uid ? 'accepted' : 'pending',
-        })),
-        playerUids: allPlayers.map((p) => p.uid),
+        players: [
+          ...allPlayers.map((p) => ({
+            uid: p.uid,
+            displayName: p.displayName,
+            photoURL: p.photoURL ?? null,
+            totalScore: 0,
+            roundsPlayed: 0,
+            inviteStatus: p.uid === user.uid ? 'accepted' as const : 'pending' as const,
+          })),
+          ...guestGamePlayers,
+        ],
+        playerUids: [...allPlayers.map((p) => p.uid), ...guestPlayers.map((g) => g.uid)],
         gameMode,
       })
       router.push(`/games/${gameId}`)
@@ -112,6 +141,53 @@ export default function NewGamePage() {
           <PlayerSelector friends={friendsList} selected={selectedPlayers} onToggle={togglePlayer} />
         </div>
 
+        {/* Vendégek */}
+        <div className="flex flex-col gap-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
+            Vendégek
+            {guestPlayers.length > 0 && (
+              <span className="ml-2 text-primary-500">{guestPlayers.length} fő</span>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={guestInput}
+              onChange={(e) => setGuestInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addGuest()}
+              placeholder="Vendég neve…"
+              maxLength={32}
+              className="flex-1 rounded-2xl border-2 border-border bg-surface-elevated px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary-400 focus:outline-none transition-colors"
+            />
+            <button
+              type="button"
+              onClick={addGuest}
+              disabled={!guestInput.trim()}
+              className="rounded-2xl border-2 border-primary-400/60 bg-primary-500/[0.06] px-4 text-sm font-bold text-primary-600 dark:text-primary-400 active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              +
+            </button>
+          </div>
+          {guestPlayers.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {guestPlayers.map((g) => (
+                <div key={g.uid} className="flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-2.5">
+                  <span className="text-base">👤</span>
+                  <span className="flex-1 text-sm font-medium text-foreground">{g.displayName}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted rounded-full px-2 py-0.5 mr-1">Vendég</span>
+                  <button
+                    type="button"
+                    onClick={() => removeGuest(g.uid)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Játékmód */}
         <div className="flex flex-col gap-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">Játékmód</p>
@@ -142,7 +218,7 @@ export default function NewGamePage() {
         <ErrorMessage message={error} />
 
         <Button fullWidth size="lg" loading={creating} onClick={handleCreate}>
-          Játék indítása ({1 + selectedPlayers.length} játékos)
+          Játék indítása ({1 + selectedPlayers.length + guestPlayers.length} játékos)
         </Button>
       </div>
     </>

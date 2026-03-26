@@ -442,6 +442,7 @@ export async function rematchGame(gameId: string, initiatorUid: string): Promise
       roundsPlayed: 0,
       // Visszavágóban mindenki automatikusan "elfogadta" — lobby phase kimarad
       inviteStatus: 'accepted' as const,
+      ...(p.isGuest ? { isGuest: true } : {}),
     })),
     playerUids:   game.playerUids,
     roundCount:   0,

@@ -88,6 +88,11 @@ export default function PlayerRoundRow({
                 <span className="text-xs font-normal text-muted-foreground ml-1">(te)</span>
               )}
             </p>
+            {player.isGuest && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
+                Vendég
+              </span>
+            )}
             {s.badge && (
               <span className={cn('text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0', s.badgeCls)}>
                 {s.badge}
