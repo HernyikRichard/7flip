@@ -12,6 +12,8 @@ import {
   bustPlayerManually,
   setDirectScore,
   resolveActionForTarget,
+  selectActionTargetPlayer,
+  resolveCardAction,
   resolveBrutalFlip7Choice,
   finishRound,
 } from '@/services/round.service'
@@ -24,10 +26,12 @@ import Spinner from '@/components/ui/Spinner'
 import PlayerRoundRow from '@/components/games/round/PlayerRoundRow'
 import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
+import CardActionPickerModal from '@/components/games/round/CardActionPickerModal'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
 import { fireFlip7Confetti } from '@/lib/confetti'
 import type { Card } from '@/types/card.types'
+import type { CardRef } from '@/types'
 
 export default function GamePage() {
   const { id } = useParams<{ id: string }>()
@@ -41,6 +45,7 @@ export default function GamePage() {
   const [busy, setBusy] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [rematching, setRematching] = useState(false)
+  const [swapSourceCard, setSwapSourceCard] = useState<CardRef | null>(null)
 
   // ── Flip 7 konfetti ────────────────────────────────────────────────────────
   // Nyomon követjük melyik (roundId + uid) kombóra már sült el konfetti,
@@ -163,12 +168,46 @@ export default function GamePage() {
     if (!currentRound || !pendingAction) return
     setBusy(true)
     try {
-      await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
-      if (pendingAction.actionType === 'flip_four' || pendingAction.actionType === 'flip_three') {
-        setFlipFourCount(0)
-        setPickerForUid(targetUid)
+      if (pendingAction.actionType === 'discard') {
+        // Discard step 1: játékos kiválasztása → pending action frissül, majd kártya kérés
+        await selectActionTargetPlayer(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
+      } else {
+        await resolveActionForTarget(id, currentRound.id, pendingAction, targetUid, currentRound.playerStates)
+        if (pendingAction.actionType === 'flip_four' || pendingAction.actionType === 'flip_three') {
+          setFlipFourCount(0)
+          setPickerForUid(targetUid)
+        }
       }
     } finally { setBusy(false) }
+  }
+
+  async function handleCardActionResolve(sourceCard: CardRef | null, targetCard: CardRef) {
+    if (!currentRound || !pendingAction) return
+    setBusy(true)
+    setSwapSourceCard(null)
+    try {
+      await resolveCardAction(id, currentRound.id, pendingAction, sourceCard, targetCard, currentRound.playerStates, gameMode)
+    } finally { setBusy(false) }
+  }
+
+  function handleCardActionPick(cardRef: CardRef) {
+    if (!pendingAction) return
+    if (pendingAction.actionType === 'swap') {
+      if (!swapSourceCard) {
+        setSwapSourceCard(cardRef)
+      } else {
+        handleCardActionResolve(swapSourceCard, cardRef)
+      }
+    } else {
+      // steal vagy discard step 2
+      handleCardActionResolve(null, cardRef)
+    }
+  }
+
+  function handleCardActionCancel() {
+    // Swap: forrás kiválasztás resetelése (2. lépésből vissza az 1.-be)
+    setSwapSourceCard(null)
+    // Discard step 2: nincs könnyű visszalépés — a player kénytelen kártyát választani
   }
 
   async function handleBrutalFlip7Choice(targetUid: string) {
@@ -513,12 +552,28 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* Pending action: target kiválasztása */}
-      {isAwaiting && pendingAction && !pendingAction.resolvedTargetUid && (
+      {/* Pending action: játékos célpont kiválasztása (JOM, Flip Four, Discard step 1, Freeze) */}
+      {isAwaiting && pendingAction && pendingAction.requiresTargetPlayer && !pendingAction.resolvedTargetUid && (
         <ActionTargetSheet
           action={pendingAction}
           players={game.players}
           onSelect={handleActionTarget}
+        />
+      )}
+
+      {/* Swap / Steal / Discard (step 2) — kártya kiválasztása */}
+      {isAwaiting && pendingAction && currentRound && (
+        pendingAction.actionType === 'swap' ||
+        pendingAction.actionType === 'steal' ||
+        (pendingAction.actionType === 'discard' && !!pendingAction.resolvedTargetUid)
+      ) && (
+        <CardActionPickerModal
+          pendingAction={pendingAction}
+          players={game.players}
+          playerStates={currentRound.playerStates}
+          selectedSource={swapSourceCard}
+          onPick={handleCardActionPick}
+          onCancel={handleCardActionCancel}
         />
       )}
 

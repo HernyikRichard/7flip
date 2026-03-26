@@ -19,9 +19,9 @@ import {
 import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
 import { getModeEngine } from '@/lib/game-modes'
 import type { GameMode } from '@/types/gameMode.types'
-import { resolveAction } from '@/lib/actionResolver'
+import { refineDiscardTargetCards } from '@/lib/actionResolver'
 import { getGame } from './game.service'
-import type { Round, PendingAction, RoundPlayerState } from '@/types'
+import type { Round, PendingAction, RoundPlayerState, CardRef } from '@/types'
 import type { Card } from '@/types/card.types'
 
 // ── Kör real-time figyelés ───────────────────────────────────────────────────
@@ -185,7 +185,12 @@ export async function drawCardForPlayer(
   await updateRoundPlayerState(gameId, roundId, targetUid, result.updatedState)
 
   if (result.outcome === 'action_pending') {
-    await setPendingAction(gameId, roundId, result.pendingAction)
+    const pa = result.pendingAction
+    // Swap / Steal hatástalan ha nincs face-up kártya a táblán — skip, kör folytatódik
+    if ((pa.actionType === 'swap' || pa.actionType === 'steal') && pa.availableCards.length === 0) {
+      return
+    }
+    await setPendingAction(gameId, roundId, pa)
     return
   }
 
@@ -373,6 +378,63 @@ export async function resolveActionForTarget(
   await setPendingAction(gameId, roundId, result.nextPendingAction)
 
   if (!result.nextPendingAction && isRoundOver(result.updatedStates)) {
+    await finishRound(gameId, roundId)
+  }
+}
+
+// ── Discard step 1: target player kiválasztása ───────────────────────────────
+/**
+ * Discard esetén a játékos kiválasztása után NEM oldja fel az akciót,
+ * csak frissíti a pending action-t a resolvedTargetUid-dal és a szűkített
+ * availableCards-szal (célpont játékos lapjai). A UI ezután kártyát kér.
+ */
+export async function selectActionTargetPlayer(
+  gameId: string,
+  roundId: string,
+  action: PendingAction,
+  targetUid: string,
+  currentPlayerStates: Record<string, RoundPlayerState>
+): Promise<void> {
+  const withTarget: PendingAction = { ...action, resolvedTargetUid: targetUid }
+  const refined = refineDiscardTargetCards(withTarget, currentPlayerStates)
+  await setPendingAction(gameId, roundId, refined)
+}
+
+// ── Swap / Steal / Discard step 2: kártya kiválasztással feloldás ─────────────
+/**
+ * Swap:    sourceCard + targetCard (mindkettő kötelező)
+ * Steal:   sourceCard = null, targetCard = elveendő lap
+ * Discard: sourceCard = null, targetCard = eldobandó lap
+ */
+export async function resolveCardAction(
+  gameId: string,
+  roundId: string,
+  action: PendingAction,
+  sourceCard: CardRef | null,
+  targetCard: CardRef,
+  currentPlayerStates: Record<string, RoundPlayerState>,
+  gameMode?: string
+): Promise<void> {
+  const game = await getGame(gameId)
+  const engine = getModeEngine((gameMode ?? game?.gameMode ?? 'classic') as GameMode)
+
+  const resolvedAction: PendingAction = {
+    ...action,
+    ...(sourceCard ? { resolvedSourceCard: sourceCard } : {}),
+    resolvedTargetCard: targetCard,
+  }
+
+  const result = engine.resolveAction({ playerStates: currentPlayerStates, action: resolvedAction })
+
+  for (const [uid, state] of Object.entries(result.updatedStates)) {
+    if (state !== currentPlayerStates[uid]) {
+      await updateRoundPlayerState(gameId, roundId, uid, state)
+    }
+  }
+
+  await setPendingAction(gameId, roundId, null)
+
+  if (isRoundOver(result.updatedStates)) {
     await finishRound(gameId, roundId)
   }
 }
