@@ -110,6 +110,11 @@ export interface ScoreBreakdown {
    * Classic módban: undefined.
    */
   bustPenalty?: number
+  /**
+   * Classic: plus modifier kártyák összege (+5, +10, +15).
+   * undefined = 0 (backward-kompatibilis régi dokumentumokkal).
+   */
+  plusBonus?: number
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

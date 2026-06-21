@@ -13,11 +13,10 @@ import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
 import {
   scoreRound,
-  isRoundOver,
   applyCardToPlayer,
   type DrawResult,
 } from '@/lib/gameStateMachine'
-import { determineWinner, calculateBustScore } from '@/lib/scoreEngine'
+import { determineWinner } from '@/lib/scoreEngine'
 import { getModeEngine } from '@/lib/game-modes'
 import type { GameMode } from '@/types/gameMode.types'
 import { refineDiscardTargetCards } from '@/lib/actionResolver'
@@ -211,10 +210,6 @@ export async function drawCardForPlayer(
     return result.outcome
   }
 
-  const newPlayerStates = { ...currentPlayerStates, [targetUid]: result.updatedState }
-  if (isRoundOver(newPlayerStates)) {
-    await finishRound(gameId, roundId)
-  }
   return result.outcome
 }
 
@@ -254,10 +249,6 @@ export async function drawMultipleCardsForPlayer(
     return
   }
 
-  const newPlayerStates = { ...currentPlayerStates, [targetUid]: state }
-  if (isRoundOver(newPlayerStates)) {
-    await finishRound(gameId, roundId)
-  }
 }
 
 // ── Játékos megállása ─────────────────────────────────────────────────────────
@@ -275,10 +266,6 @@ export async function standPlayer(
     status: 'stayed',
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
-  const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
-  if (isRoundOver(newPlayerStates)) {
-    await finishRound(gameId, roundId)
-  }
 }
 
 // ── Azonnali bust ─────────────────────────────────────────────────────────────
@@ -299,10 +286,24 @@ export async function bustPlayerManually(
     scoreBreakdown: bustBreakdown,
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
-  const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
-  if (isRoundOver(newPlayerStates)) {
-    await finishRound(gameId, roundId)
+}
+
+// ── Bust visszavonása ─────────────────────────────────────────────────────────
+export async function undoBustPlayer(
+  gameId: string,
+  roundId: string,
+  uid: string,
+  currentPlayerStates: Record<string, RoundPlayerState>
+): Promise<void> {
+  const state = currentPlayerStates[uid]
+  if (state?.status !== 'busted') return
+  const updatedState: RoundPlayerState = {
+    ...state,
+    status: 'active',
+    roundScore: null,
+    scoreBreakdown: null,
   }
+  await updateRoundPlayerState(gameId, roundId, uid, updatedState)
 }
 
 // ── Közvetlen pont rögzítése ──────────────────────────────────────────────────
@@ -324,10 +325,6 @@ export async function setDirectScore(
     },
   }
   await updateRoundPlayerState(gameId, roundId, targetUid, updatedState)
-  const newPlayerStates = { ...currentPlayerStates, [targetUid]: updatedState }
-  if (isRoundOver(newPlayerStates)) {
-    await finishRound(gameId, roundId)
-  }
 }
 
 // ── Brutal Flip 7 choice feloldása ───────────────────────────────────────────
@@ -381,10 +378,6 @@ export async function resolveActionForTarget(
   }
 
   await setPendingAction(gameId, roundId, result.nextPendingAction)
-
-  if (!result.nextPendingAction && isRoundOver(result.updatedStates)) {
-    await finishRound(gameId, roundId)
-  }
 }
 
 // ── Pending action törlése (pl. Flip Four korai vége bust miatt) ─────────────
@@ -443,8 +436,4 @@ export async function resolveCardAction(
   }
 
   await setPendingAction(gameId, roundId, null)
-
-  if (isRoundOver(result.updatedStates)) {
-    await finishRound(gameId, roundId)
-  }
 }
