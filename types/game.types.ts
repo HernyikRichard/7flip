@@ -254,6 +254,8 @@ export interface Game {
   inviteCode?: string
   /** Ha false vagy undefined: a QR meghívó nem aktív. */
   inviteEnabled?: boolean
+  /** Ha true: bármely bejelentkezett user nézheti élőben (spectator mód). */
+  spectateEnabled?: boolean
   createdAt: Timestamp
   finishedAt: Timestamp | null
   winnerId: string | null

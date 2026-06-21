@@ -1,19 +1,46 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from './useAuth'
-import { setPresenceOnline, setPresenceOffline, subscribePresence } from '@/services/presence.service'
+import {
+  setPresenceOnline,
+  setPresenceOffline,
+  subscribeGamePresence,
+} from '@/services/presence.service'
+import type { GamePresenceEntry } from '@/services/presence.service'
 
-export function usePresence(gameId: string | null) {
+interface PresenceOptions {
+  displayName?: string
+  photoURL?: string | null
+  role?: 'player' | 'spectator'
+  currentView?: string
+}
+
+export function usePresence(gameId: string | null, options?: PresenceOptions) {
   const { user } = useAuth()
-  const [onlineUids, setOnlineUids] = useState<string[]>([])
+  // Ref so the effect closure always sees latest options without re-mounting.
+  // Updated in a layout-like effect (after every render, before next interval tick).
+  const optionsRef = useRef<PresenceOptions | undefined>(options)
+  useEffect(() => { optionsRef.current = options })
+
+  const [entries, setEntries] = useState<GamePresenceEntry[]>([])
 
   useEffect(() => {
     if (!gameId || !user) return
 
-    setPresenceOnline(gameId, user.uid)
-    const interval = setInterval(() => setPresenceOnline(gameId, user.uid), 30_000)
-    const unsub = subscribePresence(gameId, setOnlineUids)
+    const getExtra = (): PresenceOptions => ({
+      displayName: optionsRef.current?.displayName ?? undefined,
+      photoURL: optionsRef.current?.photoURL ?? null,
+      role: optionsRef.current?.role ?? 'player',
+      currentView: optionsRef.current?.currentView ?? 'game',
+    })
+
+    setPresenceOnline(gameId, user.uid, getExtra())
+    const interval = setInterval(
+      () => setPresenceOnline(gameId, user.uid, getExtra()),
+      30_000
+    )
+    const unsub = subscribeGamePresence(gameId, setEntries)
 
     return () => {
       clearInterval(interval)
@@ -22,5 +49,9 @@ export function usePresence(gameId: string | null) {
     }
   }, [gameId, user])
 
-  return { onlineUids }
+  const onlineUids = entries.map((e) => e.uid)
+  const spectatorEntries = entries.filter((e) => e.role === 'spectator')
+  const playerEntries = entries.filter((e) => e.role !== 'spectator')
+
+  return { onlineUids, presenceEntries: entries, spectatorEntries, playerEntries }
 }
