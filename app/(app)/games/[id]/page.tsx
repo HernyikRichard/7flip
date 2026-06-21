@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/hooks/useToast'
 import { useGameDetail } from '@/hooks/useGameDetail'
 import { startRound, forceFinishGame, rematchGame } from '@/services/game.service'
 import {
@@ -40,6 +41,7 @@ import type { CardRef } from '@/types'
 export default function GamePage() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
+  const { toast } = useToast()
   const router = useRouter()
   const { game, currentRound, loading } = useGameDetail(id)
   const { onlineUids } = usePresence(id)
@@ -89,7 +91,8 @@ export default function GamePage() {
   const isBrutalFlip7Choice = game.status === 'awaiting_brutal_flip7'
 
   // Minden játékos terminális állapotban van — hoszt zárhatja a kört
-  const isRoundEffectivelyOver = isInRound && currentRound
+  // isAwaiting-ot is beleszámítjuk: awaiting_action közben is lehet mindenki "done"
+  const isRoundEffectivelyOver = (isInRound || isAwaiting) && currentRound
     ? isRoundOver(currentRound.playerStates)
     : false
 
@@ -112,6 +115,7 @@ export default function GamePage() {
   async function handleStartRound() {
     setBusy(true)
     try { await startRound(id, game!.playerUids) }
+    catch { toast('Nem sikerült elindítani a kört.', 'error') }
     finally { setBusy(false) }
   }
 
@@ -268,6 +272,15 @@ export default function GamePage() {
     if (!currentRound) return
     setBusy(true)
     try { await finishRound(id, currentRound.id) }
+    catch { toast('Nem sikerült lezárni a kört.', 'error') }
+    finally { setBusy(false) }
+  }
+
+  async function handleSkipPendingAction() {
+    if (!currentRound) return
+    setBusy(true)
+    try { await clearPendingAction(id, currentRound.id) }
+    catch { toast('Nem sikerült kihagyni az akciót.', 'error') }
     finally { setBusy(false) }
   }
 
@@ -454,7 +467,7 @@ export default function GamePage() {
               )
             })}
 
-            {isInRound && (
+            {(isInRound || isAwaiting) && (
               <div className="flex flex-col gap-2">
                 {isRoundEffectivelyOver && user.uid === game.createdBy && (
                   <button
@@ -662,6 +675,7 @@ export default function GamePage() {
           action={pendingAction}
           players={game.players}
           onSelect={handleActionTarget}
+          onSkip={user.uid === game.createdBy ? handleSkipPendingAction : undefined}
         />
       )}
 

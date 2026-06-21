@@ -190,6 +190,11 @@ export async function drawCardForPlayer(
     if ((pa.actionType === 'swap' || pa.actionType === 'steal') && pa.availableCards.length === 0) {
       return result.outcome
     }
+    // Játékos-célzott akciók (freeze, JOM, flip_three, flip_four, discard):
+    // ha nincs érvényes célpont → akció hatástalan, kihagyjuk
+    if (pa.requiresTargetPlayer && pa.availableTargetUids.length === 0) {
+      return result.outcome
+    }
     await setPendingAction(gameId, roundId, pa)
     return result.outcome
   }
