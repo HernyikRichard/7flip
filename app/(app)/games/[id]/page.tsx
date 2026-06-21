@@ -10,6 +10,7 @@ import {
   drawMultipleCardsForPlayer,
   standPlayer,
   bustPlayerManually,
+  undoBustPlayer,
   setDirectScore,
   resolveActionForTarget,
   selectActionTargetPlayer,
@@ -18,6 +19,7 @@ import {
   clearPendingAction,
   finishRound,
 } from '@/services/round.service'
+import { isRoundOver } from '@/lib/gameStateMachine'
 import { usePresence } from '@/hooks/usePresence'
 import TopBar from '@/components/layout/TopBar'
 import GameStatusBadge from '@/components/games/GameStatusBadge'
@@ -47,6 +49,7 @@ export default function GamePage() {
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [rematching, setRematching] = useState(false)
   const [swapSourceCard, setSwapSourceCard] = useState<CardRef | null>(null)
+  const [showScoreboard, setShowScoreboard] = useState(false)
   // Just One More: után auto-stand kell a célpontnál
   const [jomTargetUid, setJomTargetUid] = useState<string | null>(null)
 
@@ -83,6 +86,11 @@ export default function GamePage() {
   const isAwaiting          = game.status === 'awaiting_action'
   const isBrutalFlip7Choice = game.status === 'awaiting_brutal_flip7'
 
+  // Minden játékos terminális állapotban van — hoszt zárhatja a kört
+  const isRoundEffectivelyOver = isInRound && currentRound
+    ? isRoundOver(currentRound.playerStates)
+    : false
+
   // Brutal Flip 7: a chooser az aktuális user-e?
   const brutalFlip7Pending   = currentRound?.pendingBrutalFlip7 ?? null
   const isBrutalFlip7Chooser = isBrutalFlip7Choice &&
@@ -97,8 +105,7 @@ export default function GamePage() {
     (pendingAction?.actionType === 'flip_four' || pendingAction?.actionType === 'flip_three') &&
     pendingAction.resolvedTargetUid
   const flipMultiTotal = pendingAction?.actionType === 'flip_three' ? 3 : 4
-  // backward compat
-  const isFlipFourActive = isFlipMultiActive
+
 
   async function handleStartRound() {
     setBusy(true)
@@ -171,6 +178,13 @@ export default function GamePage() {
     if (!currentRound) return
     setBusy(true)
     try { await bustPlayerManually(id, currentRound.id, uid, currentRound.playerStates, gameMode) }
+    finally { setBusy(false) }
+  }
+
+  async function handleUndoBust(uid: string) {
+    if (!currentRound) return
+    setBusy(true)
+    try { await undoBustPlayer(id, currentRound.id, uid, currentRound.playerStates) }
     finally { setBusy(false) }
   }
 
@@ -377,17 +391,43 @@ export default function GamePage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 {game.roundCount}. kör
               </h2>
-              {isAwaiting && pendingAction && (
-                <span className="text-xs text-warning-600 dark:text-warning-400 font-medium">
-                  Döntés szükséges…
-                </span>
-              )}
-              {isBrutalFlip7Choice && (
-                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                  🔥 Flip 7 — Brutal döntés…
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {isAwaiting && pendingAction && (
+                  <span className="text-xs text-warning-600 dark:text-warning-400 font-medium">
+                    Döntés szükséges…
+                  </span>
+                )}
+                {isBrutalFlip7Choice && (
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                    🔥 Flip 7 — Brutal döntés…
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowScoreboard((v) => !v)}
+                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground hover:bg-surface-elevated transition-colors"
+                >
+                  📊 Állás
+                </button>
+              </div>
             </div>
+
+            {/* Inline scoreboard */}
+            {showScoreboard && (
+              <div className="rounded-xl border border-border bg-surface divide-y divide-border overflow-hidden">
+                {[...game.players].sort((a, b) => b.totalScore - a.totalScore).map((p, i) => (
+                  <div key={p.uid} className="flex items-center gap-2 px-3 py-2">
+                    <span className="text-xs text-muted-foreground w-4 text-center shrink-0">#{i + 1}</span>
+                    <span className="flex-1 text-sm font-medium text-foreground truncate">
+                      {p.displayName}
+                      {p.uid === user.uid && <span className="text-xs font-normal text-muted-foreground ml-1">(te)</span>}
+                    </span>
+                    <span className="font-bold tabular-nums text-sm text-foreground shrink-0">
+                      {p.totalScore}<span className="text-xs font-normal text-muted-foreground ml-0.5">p</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {game.players.map((player) => {
               const state = currentRound.playerStates[player.uid]
@@ -407,25 +447,36 @@ export default function GamePage() {
                   onAddCard={() => setPickerForUid(player.uid)}
                   onStand={() => handleStand(player.uid)}
                   onBust={() => handleBust(player.uid)}
+                  onUndoBust={() => handleUndoBust(player.uid)}
                 />
               )
             })}
 
             {isInRound && (
-              <div className="flex gap-2">
-                {/* Scan gomb — csak a saját sorhoz */}
-                <Button
-                  variant="secondary"
-                  onClick={() => router.push(`/games/${id}/scan`)}
-                  className="flex-1"
-                >
-                  📷 Scan
-                </Button>
-                {user.uid === game.createdBy && (
-                  <Button variant="secondary" onClick={handleForceFinishRound} loading={busy} className="flex-1">
-                    Kör lezárása
-                  </Button>
+              <div className="flex flex-col gap-2">
+                {isRoundEffectivelyOver && user.uid === game.createdBy && (
+                  <button
+                    onClick={handleForceFinishRound}
+                    disabled={busy}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-primary-400 bg-primary-500/10 py-3 text-sm font-bold text-primary-600 dark:text-primary-400 active:scale-[0.98] transition-all disabled:opacity-50"
+                  >
+                    ✓ Kör lezárása — mindenki végzett
+                  </button>
                 )}
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => router.push(`/games/${id}/scan`)}
+                    className="flex-1"
+                  >
+                    📷 Scan
+                  </Button>
+                  {user.uid === game.createdBy && !isRoundEffectivelyOver && (
+                    <Button variant="secondary" onClick={handleForceFinishRound} loading={busy} className="flex-1">
+                      Kör lezárása
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -468,6 +519,7 @@ export default function GamePage() {
                                 state.scoreBreakdown.halvedSum !== state.scoreBreakdown.numberSum &&
                                 `×2 = ${state.scoreBreakdown.halvedSum}`,
                               state.scoreBreakdown.modifierPenalty > 0 && `-${state.scoreBreakdown.modifierPenalty}`,
+                              (state.scoreBreakdown.plusBonus ?? 0) > 0 && `+${state.scoreBreakdown.plusBonus}`,
                               state.scoreBreakdown.flip7Bonus > 0 && `🎉+${state.scoreBreakdown.flip7Bonus}`,
                               `= ${state.scoreBreakdown.total} p`,
                             ].filter(Boolean).join('  ')

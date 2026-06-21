@@ -31,18 +31,28 @@ export function calculateRoundScore(
   // Lucky 13 mindkét példánya beleszámít (13 + 13 = 26).
   const numberSum = state.numberCards.reduce((s, v) => s + v, 0)
 
-  // ── 2. ÷2 modifier ─────────────────────────────────────────────────────
+  // ── 2. ×2 / ÷2 modifier ─────────────────────────────────────────────────
+  const hasX2      = state.modifierCards.some((m) => m.modifierType === 'x2')
   const hasDivide2 = state.modifierCards.some((m) => m.modifierType === 'divide2')
-  const halvedSum  = hasDivide2 ? Math.floor(numberSum / 2) : numberSum
+  const halvedSum  = hasDivide2
+    ? Math.floor(numberSum / 2)
+    : hasX2
+      ? numberSum * 2
+      : numberSum
 
-  // ── 3. Minus modifier-ek összege ────────────────────────────────────────
+  // ── 3. Plus modifier bónusz (Classic: +5 / +10 / +15) ──────────────────
+  const plusBonus = state.modifierCards
+    .filter((m) => m.modifierType === 'plus')
+    .reduce((s, m) => s + (m.value ?? 0), 0)
+
+  // ── 4. Minus modifier-ek összege ────────────────────────────────────────
   const modifierPenalty = state.modifierCards
     .filter((m) => m.modifierType === 'minus')
     .reduce((s, m) => s + (m.value ?? m.minusValue ?? 0), 0)
 
-  // ── 4. Base score ───────────────────────────────────────────────────────
+  // ── 5. Base score ───────────────────────────────────────────────────────
   // Classic és Revenge: nem mehet 0 alá (kivéve Brutal Mode)
-  const raw = halvedSum - modifierPenalty
+  const raw = halvedSum - modifierPenalty + plusBonus
   const baseScore = config.allowNegativeScore ? raw : Math.max(0, raw)
 
   // ── 5. The Zero hatása ──────────────────────────────────────────────────
@@ -56,6 +66,7 @@ export function calculateRoundScore(
       divide2Applied: hasDivide2,
       halvedSum,
       modifierPenalty,
+      plusBonus: plusBonus > 0 ? plusBonus : undefined,
       baseScore: 0,
       flip7Bonus: 0,
       total: 0,
@@ -64,7 +75,7 @@ export function calculateRoundScore(
     }
   }
 
-  // ── 6. Flip 7 bónusz ────────────────────────────────────────────────────
+  // ── 7. Flip 7 bónusz ────────────────────────────────────────────────────
   // Brutal: a +15 / −15 choice mechanism-ban kerül alkalmazásra (resolveBrutalFlip7Choice),
   // ezért itt 0-t adunk vissza — a service layer számolja rá a bónuszt/büntetést.
   const flip7Bonus = isFlip7 && !config.brutalFlip7CanPunish ? config.flip7Bonus : 0
@@ -75,6 +86,7 @@ export function calculateRoundScore(
     divide2Applied: hasDivide2,
     halvedSum,
     modifierPenalty,
+    plusBonus: plusBonus > 0 ? plusBonus : undefined,
     baseScore,
     flip7Bonus,
     total,
@@ -176,8 +188,9 @@ export function formatScoreBreakdown(b: ScoreBreakdown): string {
     // Classic ×2 modifier: halvedSum stores the doubled value
     parts.push(`×2 = ${b.halvedSum}`)
   }
-  if (b.modifierPenalty)   parts.push(`−${b.modifierPenalty}`)
-  if (b.flip7Bonus)        parts.push(`🎉 Flip 7: +${b.flip7Bonus}`)
+  if (b.modifierPenalty)               parts.push(`−${b.modifierPenalty}`)
+  if (b.plusBonus && b.plusBonus > 0)  parts.push(`+${b.plusBonus}`)
+  if (b.flip7Bonus)                    parts.push(`🎉 Flip 7: +${b.flip7Bonus}`)
   parts.push(`= ${b.total} pont`)
 
   return parts.join('  ·  ')

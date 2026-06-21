@@ -18,6 +18,7 @@ interface PlayerRoundRowProps {
   onAddCard: () => void
   onStand: () => void
   onBust: () => void
+  onUndoBust?: () => void
 }
 
 // Állapot-specifikus vizuális konfig
@@ -60,12 +61,22 @@ const STATUS_STYLES: Record<string, {
 }
 
 export default function PlayerRoundRow({
-  player, state, isCurrentUser, canAct, flipFourPending, onAddCard, onStand, onBust,
+  player, state, isCurrentUser, canAct, flipFourPending, onAddCard, onStand, onBust, onUndoBust,
 }: PlayerRoundRowProps) {
   const s       = STATUS_STYLES[state.status] ?? STATUS_STYLES.active
   const isActive = state.status === 'active'
   const hasCards = state.handCards.length > 0
-  const liveSum  = state.numberCards.reduce((acc, n) => acc + n, 0)
+
+  // Élő összeg: modifier hatásait beleszámítva (aktív játékosnak)
+  const liveSum = (() => {
+    const numSum = state.numberCards.reduce((acc, n) => acc + n, 0)
+    const hasX2      = state.modifierCards.some((m) => m.modifierType === 'x2')
+    const hasDivide2 = state.modifierCards.some((m) => m.modifierType === 'divide2')
+    const effective = hasDivide2 ? Math.floor(numSum / 2) : hasX2 ? numSum * 2 : numSum
+    const minus = state.modifierCards.filter(m => m.modifierType === 'minus').reduce((s, m) => s + (m.value ?? m.minusValue ?? 0), 0)
+    const plus  = state.modifierCards.filter(m => m.modifierType === 'plus').reduce((s, m) => s + (m.value ?? 0), 0)
+    return effective - minus + plus
+  })()
 
   return (
     <div className={cn(
@@ -212,6 +223,7 @@ export default function PlayerRoundRow({
                   state.scoreBreakdown.halvedSum > 0 &&
                   `×2 → ${state.scoreBreakdown.halvedSum}`,
                 state.scoreBreakdown.modifierPenalty > 0 && `−${state.scoreBreakdown.modifierPenalty}`,
+                (state.scoreBreakdown.plusBonus ?? 0) > 0 && `+${state.scoreBreakdown.plusBonus}`,
                 state.scoreBreakdown.flip7Bonus > 0 && `🎉 +${state.scoreBreakdown.flip7Bonus}`,
               ].filter(Boolean).join('  ·  ')
             )}
@@ -241,6 +253,18 @@ export default function PlayerRoundRow({
             className="h-11 px-3 rounded-xl border-2 border-red-500/50 bg-red-500/5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/10 active:scale-[0.97] transition-all"
           >
             💥
+          </button>
+        </div>
+      )}
+
+      {/* ── Bust visszavonása ── */}
+      {state.status === 'busted' && canAct && onUndoBust && (
+        <div className="px-3 pb-3 pt-0">
+          <button
+            onClick={onUndoBust}
+            className="w-full h-9 rounded-xl border border-orange-400/50 bg-orange-500/5 text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 active:scale-[0.97] transition-all"
+          >
+            ↩ Bust visszavon
           </button>
         </div>
       )}
