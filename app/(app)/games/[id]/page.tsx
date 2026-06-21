@@ -33,6 +33,7 @@ import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import CardActionPickerModal from '@/components/games/round/CardActionPickerModal'
 import InviteQRSheet from '@/components/games/InviteQRSheet'
 import GameRecap from '@/components/games/GameRecap'
+import LiveInsights from '@/components/games/LiveInsights'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
 import { fireFlip7Confetti } from '@/lib/confetti'
@@ -380,6 +381,7 @@ export default function GamePage() {
         {(!isInRound && !isAwaiting) && (
           <div className="flex flex-col gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">Állás</p>
+            {!isFinished && <LiveInsights game={game} currentRound={currentRound} max={2} />}
             {sorted.map((player, i) => (
               <div
                 key={player.uid}
@@ -456,6 +458,9 @@ export default function GamePage() {
                 ))}
               </div>
             )}
+
+            {/* Élő insightok — max 1 a leglényegesebb */}
+            <LiveInsights game={game} currentRound={currentRound} max={1} />
 
             {game.players.map((player) => {
               const state = currentRound.playerStates[player.uid]
