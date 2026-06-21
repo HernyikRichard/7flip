@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { useGameDetail } from '@/hooks/useGameDetail'
-import { startRound, forceFinishGame, rematchGame, getGameRounds } from '@/services/game.service'
+import { startRound, forceFinishGame, rematchGame, getGameRounds, enableSpectating, disableSpectating } from '@/services/game.service'
 import {
   drawCardForPlayer,
   drawMultipleCardsForPlayer,
@@ -34,6 +34,7 @@ import CardActionPickerModal from '@/components/games/round/CardActionPickerModa
 import InviteQRSheet from '@/components/games/InviteQRSheet'
 import GameRecap from '@/components/games/GameRecap'
 import LiveInsights from '@/components/games/LiveInsights'
+import LivePresence from '@/components/games/LivePresence'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
 import { fireFlip7Confetti } from '@/lib/confetti'
@@ -46,7 +47,15 @@ export default function GamePage() {
   const { toast } = useToast()
   const router = useRouter()
   const { game, currentRound, loading } = useGameDetail(id)
-  const { onlineUids } = usePresence(id)
+  // Role: player ha a usernek van uid a playerUids-ban, egyébként spectator.
+  // game null esetén default 'player' — optionsRef menti a frissítést.
+  const presenceRole = game?.playerUids.includes(user?.uid ?? '') === false ? 'spectator' : 'player'
+  const { onlineUids, spectatorEntries } = usePresence(id, {
+    displayName: user?.displayName ?? undefined,
+    photoURL: user?.photoURL ?? null,
+    role: presenceRole,
+    currentView: 'game',
+  })
 
   const [allRounds, setAllRounds] = useState<Round[]>([])
   const [pickerForUid, setPickerForUid] = useState<string | null>(null)
@@ -93,6 +102,9 @@ export default function GamePage() {
     </div>
   )
 
+  const isPlayer  = game.playerUids.includes(user.uid)
+  const isHost    = user.uid === game.createdBy
+
   const isFinished          = game.status === 'game_finished'
   const isInRound           = game.status === 'in_round'
   const isRoundDone         = game.status === 'round_finished'
@@ -120,6 +132,31 @@ export default function GamePage() {
     pendingAction.resolvedTargetUid
   const flipMultiTotal = pendingAction?.actionType === 'flip_three' ? 3 : 4
 
+  async function handleSpectateToggle() {
+    if (!game) return
+    try {
+      if (game.spectateEnabled) {
+        await disableSpectating(id)
+        toast('Élő követés kikapcsolva.', 'success')
+      } else {
+        await enableSpectating(id)
+        await navigator.clipboard.writeText(window.location.href)
+        toast('Élő követés bekapcsolva — link másolva!', 'success')
+      }
+    } catch {
+      toast('Nem sikerült a beállítás.', 'error')
+    }
+  }
+
+  async function handleCopySpectateLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      toast('Link másolva!', 'success')
+    } catch {
+      toast('Nem sikerült másolni.', 'error')
+    }
+  }
+
 
   async function handleStartRound() {
     setBusy(true)
@@ -129,7 +166,7 @@ export default function GamePage() {
   }
 
   function canRecordFor(uid: string): boolean {
-    if (!isInRound || busy || !game) return false
+    if (!isPlayer || !isInRound || busy || !game) return false
     const player = game.players.find((p) => p.uid === uid)
     if (player?.isGuest) return user?.uid === game.createdBy
     const isOnline = onlineUids.includes(uid)
@@ -337,9 +374,32 @@ export default function GamePage() {
               {GAME_MODE_META[game.gameMode ?? 'classic'].label}
             </span>
             <p className="text-xs text-muted-foreground">{game.roundCount}. kör · {game.targetScore} p</p>
+            <LivePresence spectatorEntries={spectatorEntries} />
           </div>
-          <GameStatusBadge status={game.status} />
+          <div className="flex items-center gap-2">
+            {isHost && !isFinished && (
+              <button
+                onClick={game.spectateEnabled ? handleCopySpectateLink : handleSpectateToggle}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                  game.spectateEnabled
+                    ? 'border-primary-400/60 bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {game.spectateEnabled ? '👁 Nézők' : '👁'}
+              </button>
+            )}
+            <GameStatusBadge status={game.status} />
+          </div>
         </div>
+
+        {/* Néző banner */}
+        {!isPlayer && (
+          <div className="rounded-xl border border-primary-300/50 bg-primary-50 dark:bg-primary-950/30 dark:border-primary-500/30 px-3 py-2.5 flex items-center gap-2">
+            <span className="text-sm">👁</span>
+            <p className="text-xs font-medium text-primary-700 dark:text-primary-300">Néző módban követed a játékot</p>
+          </div>
+        )}
 
         {/* Győztes + rematch */}
         {isFinished && winner && (
@@ -485,9 +545,9 @@ export default function GamePage() {
               )
             })}
 
-            {(isInRound || isAwaiting) && (
+            {isPlayer && (isInRound || isAwaiting) && (
               <div className="flex flex-col gap-2">
-                {isRoundEffectivelyOver && user.uid === game.createdBy && (
+                {isRoundEffectivelyOver && isHost && (
                   <button
                     onClick={handleForceFinishRound}
                     disabled={busy}
@@ -504,7 +564,7 @@ export default function GamePage() {
                   >
                     📷 Scan
                   </Button>
-                  {user.uid === game.createdBy && !isRoundEffectivelyOver && (
+                  {isHost && !isRoundEffectivelyOver && (
                     <Button variant="secondary" onClick={handleForceFinishRound} loading={busy} className="flex-1">
                       Kör lezárása
                     </Button>
@@ -607,19 +667,19 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Akció gombok */}
-        {game.status === 'waiting_for_players' && allAccepted && (
+        {/* Akció gombok — csak játékosoknak */}
+        {isPlayer && game.status === 'waiting_for_players' && allAccepted && (
           <Button fullWidth size="lg" onClick={handleStartRound} loading={busy}>
             Első kör indítása
           </Button>
         )}
-        {isRoundDone && (
+        {isPlayer && isRoundDone && (
           <Button fullWidth size="lg" onClick={handleStartRound} loading={busy}>
             Következő kör
           </Button>
         )}
 
-        {!isFinished && (
+        {isPlayer && !isFinished && (
           <Button fullWidth variant="danger" onClick={() => setConfirmFinish(true)} loading={busy}>
             Játék lezárása
           </Button>
@@ -628,7 +688,7 @@ export default function GamePage() {
       </div>
 
       {/* Brutal Flip 7 choice modal */}
-      {isBrutalFlip7Choice && brutalFlip7Pending && isBrutalFlip7Chooser && (
+      {isPlayer && isBrutalFlip7Choice && brutalFlip7Pending && isBrutalFlip7Chooser && (
         <div
           className="fixed inset-0 z-[9999] flex flex-col justify-end bg-black/50 backdrop-blur-sm"
         >
@@ -675,7 +735,7 @@ export default function GamePage() {
       )}
 
       {/* Brutal Flip 7: várakozás más játékos döntésére */}
-      {isBrutalFlip7Choice && brutalFlip7Pending && !isBrutalFlip7Chooser && (
+      {isPlayer && isBrutalFlip7Choice && brutalFlip7Pending && !isBrutalFlip7Chooser && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none">
           <div className="bg-surface rounded-3xl border border-border px-6 py-5 text-center flex flex-col gap-2 shadow-xl">
             <p className="text-2xl">🔥</p>
@@ -688,17 +748,17 @@ export default function GamePage() {
       )}
 
       {/* Pending action: játékos célpont kiválasztása (JOM, Flip Four, Discard step 1, Freeze) */}
-      {isAwaiting && pendingAction && pendingAction.requiresTargetPlayer && !pendingAction.resolvedTargetUid && (
+      {isPlayer && isAwaiting && pendingAction && pendingAction.requiresTargetPlayer && !pendingAction.resolvedTargetUid && (
         <ActionTargetSheet
           action={pendingAction}
           players={game.players}
           onSelect={handleActionTarget}
-          onSkip={user.uid === game.createdBy ? handleSkipPendingAction : undefined}
+          onSkip={isHost ? handleSkipPendingAction : undefined}
         />
       )}
 
       {/* Swap / Steal / Discard (step 2) — kártya kiválasztása */}
-      {isAwaiting && pendingAction && currentRound && (
+      {isPlayer && isAwaiting && pendingAction && currentRound && (
         pendingAction.actionType === 'swap' ||
         pendingAction.actionType === 'steal' ||
         (pendingAction.actionType === 'discard' && !!pendingAction.resolvedTargetUid)
@@ -714,7 +774,7 @@ export default function GamePage() {
       )}
 
       {/* Card picker modal */}
-      {pickerForUid && pickerPlayer && (
+      {isPlayer && pickerForUid && pickerPlayer && (
         <CardPickerModal
           playerName={
             isFlipMultiActive && pendingAction?.resolvedTargetUid
@@ -740,7 +800,7 @@ export default function GamePage() {
       )}
 
       {/* Játék lezárása — megerősítés */}
-      {confirmFinish && (() => {
+      {isPlayer && confirmFinish && (() => {
         const leader = [...game.players].sort((a, b) => b.totalScore - a.totalScore)[0]
         return (
           <div

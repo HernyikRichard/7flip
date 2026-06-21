@@ -61,17 +61,18 @@ service cloud.firestore {
 
     // ── Games ─────────────────────────────────────────────────────────────────
     match /games/{gameId} {
-      // QR meghívó: ha inviteEnabled=true és a game még lobby fázisban van,
-      // bármely bejelentkezett user olvashatja (invite code az access token).
+      // Olvasás: játékos, QR lobby meghívott, VAGY spectateEnabled néző.
       allow read: if isSignedIn() && (
         request.auth.uid in resource.data.playerUids ||
         (resource.data.inviteEnabled == true &&
-         resource.data.status == 'waiting_for_players')
+         resource.data.status == 'waiting_for_players') ||
+        resource.data.spectateEnabled == true
       );
       allow create: if isSignedIn() &&
         request.resource.data.createdBy == request.auth.uid &&
         request.auth.uid in request.resource.data.playerUids;
-      // QR csatlakozás: invite aktív lobby-ban bármely auth user frissíthet
+      // Írás: csak játékosok és QR lobby csatlakozók.
+      // Spectator soha nem írhat game state-et.
       allow update: if isSignedIn() && (
         request.auth.uid in resource.data.playerUids ||
         (resource.data.inviteEnabled == true &&
@@ -80,16 +81,24 @@ service cloud.firestore {
       allow delete: if false;
 
       match /rounds/{roundId} {
-        allow read: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
+        // Spectator olvashatja a kör állapotát ha spectateEnabled.
+        allow read: if isSignedIn() && (
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids ||
+          get(/databases/$(database)/documents/games/$(gameId)).data.spectateEnabled == true
+        );
+        // Csak játékosok írhatnak round state-et.
         allow create, update: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
         allow delete: if false;
       }
 
       match /presence/{uid} {
-        allow read: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids;
+        // Spectator is olvashatja a jelenléteket ha spectateEnabled.
+        allow read: if isSignedIn() && (
+          request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerUids ||
+          get(/databases/$(database)/documents/games/$(gameId)).data.spectateEnabled == true
+        );
+        // Mindenki csak a saját presence doksiját írhatja.
         allow create, update: if isSignedIn() && request.auth.uid == uid;
         allow delete: if isSignedIn() && request.auth.uid == uid;
       }

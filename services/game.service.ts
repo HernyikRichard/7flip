@@ -274,3 +274,11 @@ export async function forceFinishGame(gameId: string, winnerId: string): Promise
   })
   // Megjegyzés: gamesPlayed/gamesWon stat frissítése Cloud Function feladata
 }
+
+export async function enableSpectating(gameId: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), { spectateEnabled: true })
+}
+
+export async function disableSpectating(gameId: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), { spectateEnabled: false })
+}
