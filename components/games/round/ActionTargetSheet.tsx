@@ -9,6 +9,7 @@ interface ActionTargetSheetProps {
   action: PendingAction
   players: GamePlayer[]
   onSelect: (targetUid: string) => void
+  onSkip?: () => void
 }
 
 const ACTION_META: Record<string, { icon: string; desc: string; color: string }> = {
@@ -49,7 +50,7 @@ const ACTION_META: Record<string, { icon: string; desc: string; color: string }>
   },
 }
 
-export default function ActionTargetSheet({ action, players, onSelect }: ActionTargetSheetProps) {
+export default function ActionTargetSheet({ action, players, onSelect, onSkip }: ActionTargetSheetProps) {
   const targets = players.filter((p) => action.availableTargetUids.includes(p.uid))
   const actor   = players.find((p) => p.uid === action.playedByUid)
   const meta    = ACTION_META[action.actionType]
@@ -91,6 +92,19 @@ export default function ActionTargetSheet({ action, players, onSelect }: ActionT
 
         {/* Target list */}
         <div className="flex flex-col gap-2 px-4">
+          {targets.length === 0 && onSkip && (
+            <div className="flex flex-col gap-3 items-center py-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Nincs érvényes célpont — az akció hatástalan.
+              </p>
+              <button
+                onClick={onSkip}
+                className="w-full h-12 rounded-2xl border border-border bg-muted text-sm font-semibold text-muted-foreground hover:text-foreground active:scale-[0.97] transition-all"
+              >
+                Kihagyás
+              </button>
+            </div>
+          )}
           {targets.map((p) => (
             <button
               key={p.uid}
