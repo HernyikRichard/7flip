@@ -11,6 +11,7 @@ import { logout } from '@/services/auth.service'
 import { ROUTES } from '@/lib/constants'
 import TopBar from '@/components/layout/TopBar'
 import AvatarUpload from '@/components/profile/AvatarUpload'
+import AvatarPicker from '@/components/profile/AvatarPicker'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import ErrorMessage from '@/components/ui/ErrorMessage'
@@ -124,10 +125,20 @@ export default function ProfilePage() {
 
       <div className="px-4 py-5 flex flex-col gap-5 max-w-lg mx-auto">
 
-        {/* Avatar */}
+        {/* Avatar feltöltés */}
         <div className="flex justify-center py-2">
           <AvatarUpload uid={profile.uid} currentPhotoURL={profile.photoURL} displayName={profile.displayName} />
         </div>
+
+        {/* Flip7 avatar választó */}
+        <div className="flex flex-col gap-2.5">
+          <AvatarPicker
+            uid={profile.uid}
+            currentPhotoURL={profile.photoURL}
+          />
+        </div>
+
+        <div className="border-t border-border" />
 
         {/* Form */}
         <div className="flex flex-col gap-3">
