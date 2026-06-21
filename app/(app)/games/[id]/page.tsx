@@ -280,7 +280,7 @@ export default function GamePage() {
     if (!currentRound) return
     setBusy(true)
     try { await finishRound(id, currentRound.id) }
-    catch { toast('Nem sikerült lezárni a kört.', 'error') }
+    catch (err) { console.error('[finishRound]', err); toast('Nem sikerült lezárni a kört.', 'error') }
     finally { setBusy(false) }
   }
 
