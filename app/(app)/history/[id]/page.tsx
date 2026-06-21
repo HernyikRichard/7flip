@@ -8,6 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 import HistoryScoreboard from '@/components/history/HistoryScoreboard'
 import HistoryScoreChart from '@/components/history/HistoryScoreChart'
 import HistoryRoundBreakdown from '@/components/history/HistoryRoundBreakdown'
+import GameRecap from '@/components/games/GameRecap'
 import { toDate } from '@/lib/utils'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
@@ -73,6 +74,11 @@ export default function GameHistoryDetailPage() {
               </p>
             )}
           </div>
+        )}
+
+        {/* Highlightok */}
+        {rounds.length > 0 && (
+          <GameRecap game={game} rounds={rounds} />
         )}
 
         {/* Végeredmény */}

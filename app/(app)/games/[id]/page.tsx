@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { useGameDetail } from '@/hooks/useGameDetail'
-import { startRound, forceFinishGame, rematchGame } from '@/services/game.service'
+import { startRound, forceFinishGame, rematchGame, getGameRounds } from '@/services/game.service'
 import {
   drawCardForPlayer,
   drawMultipleCardsForPlayer,
@@ -32,11 +32,12 @@ import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import CardActionPickerModal from '@/components/games/round/CardActionPickerModal'
 import InviteQRSheet from '@/components/games/InviteQRSheet'
+import GameRecap from '@/components/games/GameRecap'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
 import { fireFlip7Confetti } from '@/lib/confetti'
 import type { Card } from '@/types/card.types'
-import type { CardRef } from '@/types'
+import type { CardRef, Round } from '@/types'
 
 export default function GamePage() {
   const { id } = useParams<{ id: string }>()
@@ -46,6 +47,7 @@ export default function GamePage() {
   const { game, currentRound, loading } = useGameDetail(id)
   const { onlineUids } = usePresence(id)
 
+  const [allRounds, setAllRounds] = useState<Round[]>([])
   const [pickerForUid, setPickerForUid] = useState<string | null>(null)
   const [flipFourCount, setFlipFourCount] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -74,6 +76,12 @@ export default function GamePage() {
     })
     if (fired) fireFlip7Confetti()
   }, [currentRound])
+
+  // Játék vége: rounds betöltése a recap-hoz (one-shot fetch)
+  useEffect(() => {
+    if (game?.status !== 'game_finished') return
+    getGameRounds(id).then(setAllRounds)
+  }, [game?.status, id])
 
   if (!user) return null
   if (loading) return <div className="flex min-h-screen items-center justify-center"><Spinner size="lg" /></div>
@@ -361,6 +369,11 @@ export default function GamePage() {
               )}
             </button>
           </div>
+        )}
+
+        {/* Játék végi highlightok */}
+        {isFinished && allRounds.length > 0 && (
+          <GameRecap game={game} rounds={allRounds} />
         )}
 
         {/* Ranglista */}
