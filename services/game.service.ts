@@ -8,6 +8,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   serverTimestamp,
   type Unsubscribe,
@@ -202,6 +203,66 @@ export async function rematchGame(gameId: string, initiatorUid: string): Promise
   })
 
   return ref.id
+}
+
+// ── QR meghívó: kód generálás / aktiválás ────────────────────────────────────
+/**
+ * Invite code-ot generál (ha nincs), bekapcsolja és visszaadja a kódot.
+ * Idempotens: ha már van aktív kód, azt adja vissza.
+ */
+export async function enableGameInvite(gameId: string): Promise<string> {
+  const game = await getGame(gameId)
+  if (!game) throw new Error('Game not found')
+
+  if (game.inviteCode && game.inviteEnabled) return game.inviteCode
+
+  const code = Math.random().toString(36).substring(2, 10)
+  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
+    inviteCode: code,
+    inviteEnabled: true,
+  })
+  return code
+}
+
+// ── QR meghívó: keresés kód alapján ─────────────────────────────────────────
+export async function getGameByInviteCode(code: string): Promise<Game | null> {
+  const q = query(
+    collection(db, COLLECTIONS.GAMES),
+    where('inviteCode', '==', code),
+    limit(1)
+  )
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  const game = { id: d.id, ...d.data() } as Game
+  if (!game.inviteEnabled) return null
+  return game
+}
+
+// ── QR meghívó: csatlakozás ──────────────────────────────────────────────────
+export async function joinGameByInvite(
+  gameId: string,
+  player: { uid: string; displayName: string; photoURL: string | null }
+): Promise<void> {
+  const game = await getGame(gameId)
+  if (!game) throw new Error('Game not found')
+  if (!game.inviteEnabled || game.status !== 'waiting_for_players') {
+    throw new Error('Invite not active')
+  }
+  if (game.playerUids.includes(player.uid)) return  // már játékos, siker
+
+  const newPlayer = {
+    uid: player.uid,
+    displayName: player.displayName,
+    photoURL: player.photoURL,
+    totalScore: 0,
+    roundsPlayed: 0,
+    inviteStatus: 'accepted' as const,
+  }
+  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
+    players: [...game.players, newPlayer],
+    playerUids: [...game.playerUids, player.uid],
+  })
 }
 
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────

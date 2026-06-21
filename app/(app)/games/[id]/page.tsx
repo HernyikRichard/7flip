@@ -30,6 +30,7 @@ import PlayerRoundRow from '@/components/games/round/PlayerRoundRow'
 import CardPickerModal from '@/components/games/round/CardPickerModal'
 import ActionTargetSheet from '@/components/games/round/ActionTargetSheet'
 import CardActionPickerModal from '@/components/games/round/CardActionPickerModal'
+import InviteQRSheet from '@/components/games/InviteQRSheet'
 import { ROUTES } from '@/lib/constants'
 import { GAME_MODE_META } from '@/lib/game-modes'
 import { fireFlip7Confetti } from '@/lib/confetti'
@@ -50,6 +51,7 @@ export default function GamePage() {
   const [rematching, setRematching] = useState(false)
   const [swapSourceCard, setSwapSourceCard] = useState<CardRef | null>(null)
   const [showScoreboard, setShowScoreboard] = useState(false)
+  const [showQR, setShowQR] = useState(false)
   // Just One More: után auto-stand kell a célpontnál
   const [jomTargetUid, setJomTargetUid] = useState<string | null>(null)
 
@@ -536,9 +538,20 @@ export default function GamePage() {
         {/* Lobby */}
         {game.status === 'waiting_for_players' && (
           <div className="rounded-2xl border border-border bg-surface p-4 flex flex-col gap-3">
-            <p className="text-sm font-semibold text-foreground">
-              {allAccepted ? 'Mindenki kész!' : 'Várakozás a játékosokra…'}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">
+                {allAccepted ? 'Mindenki kész!' : 'Várakozás a játékosokra…'}
+              </p>
+              {user.uid === game.createdBy && (
+                <button
+                  onClick={() => setShowQR(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary-500/10 border border-primary-400/40 text-primary-600 dark:text-primary-400 active:scale-[0.97] transition-all"
+                >
+                  <span>📱</span>
+                  <span>QR meghívó</span>
+                </button>
+              )}
+            </div>
             {game.players.map((p) => (
               <div key={p.uid} className="flex items-center gap-3">
                 {p.isGuest
@@ -548,6 +561,15 @@ export default function GamePage() {
                 <span className="flex-1 text-sm text-foreground">{p.displayName}</span>
                 {p.isGuest && (
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted rounded-full px-2 py-0.5">Vendég</span>
+                )}
+                {!p.isGuest && p.uid !== game.createdBy && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    p.inviteStatus === 'accepted'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {p.inviteStatus === 'accepted' ? '✓' : '…'}
+                  </span>
                 )}
               </div>
             ))}
@@ -673,6 +695,15 @@ export default function GamePage() {
           onPick={handleCardPicked}
           onDirectScore={(score) => handleDirectScore(pickerForUid!, score)}
           onCancel={() => { setPickerForUid(null); setFlipFourCount(0) }}
+        />
+      )}
+
+      {/* QR meghívó sheet */}
+      {showQR && (
+        <InviteQRSheet
+          gameId={id}
+          isHost={user.uid === game.createdBy}
+          onClose={() => setShowQR(false)}
         />
       )}
 

@@ -19,4 +19,5 @@ export const ROUTES = {
   GAMES: '/games',
   GAMES_NEW: '/games/new',
   HISTORY: '/history',
+  JOIN: '/join',
 } as const

@@ -247,6 +247,13 @@ export interface Game {
    * Jelenlegi: 2
    */
   rulesVersion?: number
+  /**
+   * QR-kód alapú meghívóhoz. Véletlen 8-char alphanumerikus kód.
+   * Csak akkor aktív, ha `inviteEnabled === true`.
+   */
+  inviteCode?: string
+  /** Ha false vagy undefined: a QR meghívó nem aktív. */
+  inviteEnabled?: boolean
   createdAt: Timestamp
   finishedAt: Timestamp | null
   winnerId: string | null

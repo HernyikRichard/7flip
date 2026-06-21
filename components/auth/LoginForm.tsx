@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { loginWithEmail } from '@/services/auth.service'
 import { getAuthErrorMessage } from '@/lib/firebase/errors'
@@ -18,14 +18,19 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
+
+  // Csak relatív path-t engedünk redirect-ként (XSS védelem)
+  const rawRedirect = searchParams.get('redirect') ?? ''
+  const redirectTo = rawRedirect.startsWith('/') ? rawRedirect : ROUTES.DASHBOARD
 
   // Google redirect visszatérés után: ha user bejelentkezett, átirányítjuk
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace(ROUTES.DASHBOARD)
+      router.replace(redirectTo)
     }
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, redirectTo])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -34,7 +39,7 @@ export default function LoginForm() {
 
     try {
       await loginWithEmail(email, password)
-      router.push(ROUTES.DASHBOARD)
+      router.push(redirectTo)
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {
