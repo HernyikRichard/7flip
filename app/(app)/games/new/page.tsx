@@ -66,9 +66,10 @@ export default function NewGamePage() {
   }
 
   async function handleCreate() {
-    if (!user || !profile) return
+    if (!user || !profile || creating) return
     setError(null)
     setCreating(true)
+    let gameId: string | null = null
     try {
       const self: FriendshipUser = {
         uid: user.uid,
@@ -86,7 +87,7 @@ export default function NewGamePage() {
         inviteStatus: 'accepted' as const,
         isGuest: true,
       }))
-      const gameId = await createGame({
+      gameId = await createGame({
         createdBy: user.uid,
         players: [
           ...allPlayers.map((p) => ({
@@ -102,12 +103,14 @@ export default function NewGamePage() {
         playerUids: [...allPlayers.map((p) => p.uid), ...guestPlayers.map((g) => g.uid)],
         gameMode,
       })
-      router.push(`/games/${gameId}`)
     } catch (err) {
       console.error(err)
       setError('Nem sikerült létrehozni a játékot.')
     } finally {
       setCreating(false)
+    }
+    if (gameId) {
+      router.push(`/games/${gameId}`)
     }
   }
 
