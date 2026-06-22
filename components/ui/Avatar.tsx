@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
@@ -15,14 +18,12 @@ const SIZE_MAP = {
   xl: { px: 80, cls: 'h-20 w-20 text-2xl' },
 }
 
-// Névből generált háttérszín (konzisztens, uid-alapú is lehetne)
 function getInitialsBg(name: string): string {
   const colors = [
     'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',
     'bg-amber-500', 'bg-rose-500', 'bg-cyan-500',
   ]
-  const idx = name.charCodeAt(0) % colors.length
-  return colors[idx]
+  return colors[name.charCodeAt(0) % colors.length]
 }
 
 function getInitials(name: string): string {
@@ -34,10 +35,20 @@ function getInitials(name: string): string {
     .toUpperCase()
 }
 
+function isLocalPath(src: string): boolean {
+  return src.startsWith('/')
+}
+
 export default function Avatar({ src, name, size = 'md', className }: AvatarProps) {
   const { px, cls } = SIZE_MAP[size]
+  const [imgError, setImgError] = useState(false)
 
-  if (src) {
+  const showImage = !!src && !imgError
+
+  if (showImage) {
+    // Local static assets can be rendered unoptimized to avoid domain config issues
+    const unoptimized = isLocalPath(src)
+
     return (
       <div className={cn('relative shrink-0 overflow-hidden rounded-full', cls, className)}>
         <Image
@@ -46,6 +57,8 @@ export default function Avatar({ src, name, size = 'md', className }: AvatarProp
           fill
           sizes={`${px}px`}
           className="object-cover"
+          unoptimized={unoptimized}
+          onError={() => setImgError(true)}
         />
       </div>
     )
@@ -57,7 +70,7 @@ export default function Avatar({ src, name, size = 'md', className }: AvatarProp
   return (
     <div
       className={cn(
-        'shrink-0 rounded-full flex items-center justify-center font-semibold text-white',
+        'shrink-0 rounded-full flex items-center justify-center font-semibold text-white select-none',
         cls,
         bg,
         className
