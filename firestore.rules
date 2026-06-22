@@ -81,9 +81,12 @@ service cloud.firestore {
       // Írás: csak játékosok és QR lobby csatlakozók.
       // Spectator soha nem írhat game state-et.
       allow update: if isSignedIn() && (
-        request.auth.uid in resource.data.playerUids ||
-        (resource.data.inviteEnabled == true &&
-         resource.data.status == 'waiting_for_players')
+        // Meglévő játékos bármit frissíthet
+        request.auth.uid in resource.data.playerUids
+        // Csatlakozás invite-tal: csak a join művelet mezői engedélyezettek
+        || (resource.data.inviteEnabled == true
+            && resource.data.status == 'waiting_for_players'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'playerUids', 'updatedAt']))
       );
       allow delete: if false;
 

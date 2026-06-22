@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button'
 import Spinner from '@/components/ui/Spinner'
 import type { Game } from '@/types'
 
-type PageState = 'loading' | 'auth' | 'ready' | 'joining' | 'error' | 'already_member' | 'not_lobby'
+type PageState = 'loading' | 'ready' | 'joining' | 'error' | 'already_member' | 'not_lobby'
 
 export default function JoinPage() {
   const { code } = useParams<{ code: string }>()
@@ -85,7 +85,7 @@ export default function JoinPage() {
     }
   }
 
-  if (authLoading || pageState === 'loading' || pageState === 'auth' || pageState === 'already_member') {
+  if (authLoading || pageState === 'loading' || pageState === 'already_member') {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner size="lg" />

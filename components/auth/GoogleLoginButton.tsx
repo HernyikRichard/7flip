@@ -8,9 +8,10 @@ import { ROUTES } from '@/lib/constants'
 
 interface GoogleLoginButtonProps {
   onError?: (msg: string) => void
+  redirectTo?: string
 }
 
-export default function GoogleLoginButton({ onError }: GoogleLoginButtonProps) {
+export default function GoogleLoginButton({ onError, redirectTo }: GoogleLoginButtonProps) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -20,7 +21,7 @@ export default function GoogleLoginButton({ onError }: GoogleLoginButtonProps) {
     try {
       const user = await loginWithGoogle()
       if (user) {
-        router.push(ROUTES.DASHBOARD)
+        router.push(redirectTo ?? ROUTES.DASHBOARD)
       }
       // user === null → popup bezárva, nem hiba, gomb visszaáll
     } catch (err) {
