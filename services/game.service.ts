@@ -19,6 +19,7 @@ import { initRoundPlayerStates } from '@/lib/gameStateMachine'
 import { getGameModeConfig } from '@/lib/gameModes'
 import type { Game, Round, CreateGameData } from '@/types'
 import { writeNotification } from './notification.service'
+import { setUsersActiveGame, clearUsersActiveGame } from './userStatus.service'
 
 // ── Játék létrehozása ────────────────────────────────────────────────────────
 export async function createGame(data: CreateGameData): Promise<string> {
@@ -38,6 +39,7 @@ export async function createGame(data: CreateGameData): Promise<string> {
     finishedAt: null,
     winnerId: null,
   })
+  await setUsersActiveGame(data.playerUids, ref.id, 'waiting_for_players', data.gameMode)
   return ref.id
 }
 
@@ -75,10 +77,14 @@ export function subscribeUserGames(
 
 // ── Kör indítása ─────────────────────────────────────────────────────────────
 export async function startRound(gameId: string, playerUids: string[]): Promise<string> {
+  const game = await getGame(gameId)
+  const roundCount = game?.roundCount ?? 0
+  const gameMode = game?.gameMode ?? 'classic'
+
   const roundRef = await addDoc(
     collection(db, COLLECTIONS.GAMES, gameId, COLLECTIONS.ROUNDS),
     {
-      roundNumber: (await getGame(gameId))?.roundCount ?? 0 + 1,
+      roundNumber: roundCount + 1,
       status: 'active',
       playerStates: initRoundPlayerStates(playerUids),
       pendingAction: null,
@@ -90,10 +96,11 @@ export async function startRound(gameId: string, playerUids: string[]): Promise<
 
   await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
     status: 'in_round',
-    roundCount: ((await getGame(gameId))?.roundCount ?? 0) + 1,
+    roundCount: roundCount + 1,
     currentRoundId: roundRef.id,
   })
 
+  await setUsersActiveGame(playerUids, gameId, 'in_round', gameMode)
   return roundRef.id
 }
 
@@ -121,6 +128,8 @@ export async function invitePlayersToGame(
     players: [...game.players, ...addedPlayers],
     playerUids: [...game.playerUids, ...toAdd.map((p) => p.uid)],
   })
+
+  await setUsersActiveGame(toAdd.map((p) => p.uid), gameId, 'waiting_for_players', game.gameMode ?? 'classic')
 }
 
 // ── Meghívás elfogadása / elutasítása ────────────────────────────────────────
@@ -156,6 +165,7 @@ export async function respondToInvite(
       players: updatedPlayers,
       playerUids: updatedPlayerUids,
     })
+    await clearUsersActiveGame([uid])
   }
 }
 
@@ -202,6 +212,7 @@ export async function rematchGame(gameId: string, initiatorUid: string): Promise
     winnerId:     null,
   })
 
+  await setUsersActiveGame(game.playerUids, ref.id, 'waiting_for_players', game.gameMode ?? 'classic')
   return ref.id
 }
 
@@ -263,15 +274,18 @@ export async function joinGameByInvite(
     players: [...game.players, newPlayer],
     playerUids: [...game.playerUids, player.uid],
   })
+  await setUsersActiveGame([player.uid], gameId, game.status, game.gameMode ?? 'classic')
 }
 
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────
 export async function forceFinishGame(gameId: string, winnerId: string): Promise<void> {
+  const game = await getGame(gameId)
   await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
     status: 'game_finished',
     winnerId,
     finishedAt: serverTimestamp(),
   })
+  if (game) await clearUsersActiveGame(game.playerUids)
   // Megjegyzés: gamesPlayed/gamesWon stat frissítése Cloud Function feladata
 }
 

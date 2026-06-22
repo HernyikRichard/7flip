@@ -2,15 +2,23 @@
 
 import { useState } from 'react'
 import FriendCard from './FriendCard'
-import type { Friendship } from '@/types'
+import type { Friendship, UserActiveGameStatus, GameStatus, GameMode } from '@/types'
 
 interface FriendListProps {
   friendships: Friendship[]
   currentUid: string
+  activeGames: Record<string, UserActiveGameStatus>
   onRemove: (friendshipId: string) => Promise<void>
+  onWatch: (gameId: string) => void
 }
 
-export default function FriendList({ friendships, currentUid, onRemove }: FriendListProps) {
+export default function FriendList({
+  friendships,
+  currentUid,
+  activeGames,
+  onRemove,
+  onWatch,
+}: FriendListProps) {
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   async function handleRemove(friendshipId: string) {
@@ -35,6 +43,17 @@ export default function FriendList({ friendships, currentUid, onRemove }: Friend
         const friendUid = friendship.userIds.find((id) => id !== currentUid)!
         const friend = friendship.users[friendUid]
         if (!friend) return null
+
+        const status = activeGames[friendUid]
+        const activeGame =
+          status?.activeGameId && status.activeGameStatus !== 'game_finished'
+            ? {
+                gameId: status.activeGameId,
+                status: status.activeGameStatus as GameStatus,
+                gameMode: (status.activeGameMode ?? 'classic') as GameMode,
+              }
+            : null
+
         return (
           <FriendCard
             key={friendship.id}
@@ -42,6 +61,8 @@ export default function FriendList({ friendships, currentUid, onRemove }: Friend
             displayName={friend.displayName}
             username={friend.username}
             photoURL={friend.photoURL}
+            activeGame={activeGame}
+            onWatch={onWatch}
             secondaryAction={{
               label: 'Eltávolít',
               variant: 'ghost',

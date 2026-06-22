@@ -1,4 +1,13 @@
 import { Timestamp } from 'firebase/firestore'
+import type { GameStatus } from './game.types'
+import type { GameMode } from './gameMode.types'
+
+export interface UserActiveGameStatus {
+  activeGameId: string | null
+  activeGameStatus: GameStatus | null
+  activeGameMode: GameMode | null
+  updatedAt?: Timestamp
+}
 
 export interface UserProfile {
   uid: string
