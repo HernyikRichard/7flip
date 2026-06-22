@@ -22,28 +22,36 @@ export async function setUsersActiveGame(
   mode: GameMode
 ): Promise<void> {
   if (playerUids.length === 0) return
-  const batch = writeBatch(db)
-  playerUids.forEach((uid) => {
-    batch.set(
-      doc(db, COLLECTIONS.USER_STATUS, uid),
-      { activeGameId: gameId, activeGameStatus: status, activeGameMode: mode, updatedAt: serverTimestamp() },
-      { merge: true }
-    )
-  })
-  await batch.commit()
+  try {
+    const batch = writeBatch(db)
+    playerUids.forEach((uid) => {
+      batch.set(
+        doc(db, COLLECTIONS.USER_STATUS, uid),
+        { activeGameId: gameId, activeGameStatus: status, activeGameMode: mode, updatedAt: serverTimestamp() },
+        { merge: true }
+      )
+    })
+    await batch.commit()
+  } catch {
+    // best-effort: ne törje meg a játék flow-t ha a userStatus írás nem sikerül
+  }
 }
 
 export async function clearUsersActiveGame(playerUids: string[]): Promise<void> {
   if (playerUids.length === 0) return
-  const batch = writeBatch(db)
-  playerUids.forEach((uid) => {
-    batch.set(
-      doc(db, COLLECTIONS.USER_STATUS, uid),
-      { activeGameId: null, activeGameStatus: null, activeGameMode: null, updatedAt: serverTimestamp() },
-      { merge: true }
-    )
-  })
-  await batch.commit()
+  try {
+    const batch = writeBatch(db)
+    playerUids.forEach((uid) => {
+      batch.set(
+        doc(db, COLLECTIONS.USER_STATUS, uid),
+        { activeGameId: null, activeGameStatus: null, activeGameMode: null, updatedAt: serverTimestamp() },
+        { merge: true }
+      )
+    })
+    await batch.commit()
+  } catch {
+    // best-effort
+  }
 }
 
 export function subscribeUsersStatus(
