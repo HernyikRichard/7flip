@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  runTransaction,
   query,
   where,
   orderBy,
@@ -17,7 +18,8 @@ import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
 import { initRoundPlayerStates } from '@/lib/gameStateMachine'
 import { getGameModeConfig } from '@/lib/gameModes'
-import type { Game, Round, CreateGameData } from '@/types'
+import type { Game, Round, CreateGameData, GameStatus } from '@/types'
+import type { GameMode } from '@/types/gameMode.types'
 import { writeNotification } from './notification.service'
 import { setUsersActiveGame, clearUsersActiveGame } from './userStatus.service'
 
@@ -98,6 +100,7 @@ export async function startRound(gameId: string, playerUids: string[]): Promise<
     status: 'in_round',
     roundCount: roundCount + 1,
     currentRoundId: roundRef.id,
+    inviteEnabled: false,
   })
 
   await setUsersActiveGame(playerUids, gameId, 'in_round', gameMode)
@@ -255,26 +258,46 @@ export async function joinGameByInvite(
   gameId: string,
   player: { uid: string; displayName: string; photoURL: string | null }
 ): Promise<void> {
-  const game = await getGame(gameId)
-  if (!game) throw new Error('Game not found')
-  if (!game.inviteEnabled || game.status !== 'waiting_for_players') {
-    throw new Error('Invite not active')
-  }
-  if (game.playerUids.includes(player.uid)) return  // már játékos, siker
+  const gameRef = doc(db, COLLECTIONS.GAMES, gameId)
 
-  const newPlayer = {
-    uid: player.uid,
-    displayName: player.displayName,
-    photoURL: player.photoURL,
-    totalScore: 0,
-    roundsPlayed: 0,
-    inviteStatus: 'accepted' as const,
-  }
-  await updateDoc(doc(db, COLLECTIONS.GAMES, gameId), {
-    players: [...game.players, newPlayer],
-    playerUids: [...game.playerUids, player.uid],
+  let gameStatus: GameStatus
+  let gameMode: GameMode
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(gameRef)
+    if (!snap.exists()) throw new Error('Game not found')
+
+    const data = snap.data() as Game
+    if (!data.inviteEnabled || data.status !== 'waiting_for_players') {
+      throw new Error('Invite not active')
+    }
+    if (data.playerUids.includes(player.uid)) {
+      // Már játékos — idempotens siker, mentsük el az állapotot az alábbi híváshoz
+      gameStatus = data.status
+      gameMode = data.gameMode ?? 'classic'
+      return
+    }
+
+    const newPlayer = {
+      uid: player.uid,
+      displayName: player.displayName,
+      photoURL: player.photoURL,
+      totalScore: 0,
+      roundsPlayed: 0,
+      inviteStatus: 'accepted' as const,
+    }
+
+    transaction.update(gameRef, {
+      players: [...data.players, newPlayer],
+      playerUids: [...data.playerUids, player.uid],
+      updatedAt: serverTimestamp(),
+    })
+
+    gameStatus = data.status
+    gameMode = data.gameMode ?? 'classic'
   })
-  await setUsersActiveGame([player.uid], gameId, game.status, game.gameMode ?? 'classic')
+
+  await setUsersActiveGame([player.uid], gameId, gameStatus!, gameMode!)
 }
 
 // ── Játék befejezése (manuális) ──────────────────────────────────────────────

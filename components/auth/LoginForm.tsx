@@ -56,7 +56,7 @@ export default function LoginForm() {
         </p>
       </div>
 
-      <GoogleLoginButton onError={setError} />
+      <GoogleLoginButton onError={setError} redirectTo={redirectTo} />
 
       <div className="relative flex items-center gap-3">
         <div className="flex-1 border-t border-border" />
