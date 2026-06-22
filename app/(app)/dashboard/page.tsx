@@ -3,17 +3,31 @@
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useFriends } from '@/hooks/useFriends'
+import { useGames } from '@/hooks/useGames'
 import TopBar from '@/components/layout/TopBar'
 import Avatar from '@/components/ui/Avatar'
+import Spinner from '@/components/ui/Spinner'
+import GameCard from '@/components/games/GameCard'
+import MiniStats from '@/components/dashboard/MiniStats'
 import { ROUTES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import type { GameStatus } from '@/types'
+
+const URGENCY: Record<GameStatus, number> = {
+  awaiting_brutal_flip7: 0,
+  awaiting_action:       1,
+  in_round:              2,
+  round_finished:        3,
+  waiting_for_players:   4,
+  game_finished:         99,
+}
 
 const MODE_CARDS = [
   {
     mode: 'classic',
     emoji: '🃏',
     label: 'Classic',
-    desc: 'Cél: 100 pont',
+    desc: 'Cél: 200 pont',
     cls: 'border-blue-500/30 bg-blue-500/[0.06] dark:bg-blue-500/[0.08]',
     badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
   },
@@ -36,9 +50,24 @@ const MODE_CARDS = [
 ]
 
 export default function DashboardPage() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const { incoming, friendships } = useFriends()
+  const { activeGames, finishedGames, loading: gamesLoading } = useGames()
   const router = useRouter()
+
+  const currentUid = user?.uid ?? ''
+
+  const mostUrgentGame = activeGames.length > 0
+    ? [...activeGames].sort((a, b) => URGENCY[a.status] - URGENCY[b.status])[0]
+    : null
+
+  const recentFinishedGame = finishedGames.length > 0
+    ? [...finishedGames].sort((a, b) => {
+        const at = a.finishedAt?.toMillis() ?? a.createdAt?.toMillis() ?? 0
+        const bt = b.finishedAt?.toMillis() ?? b.createdAt?.toMillis() ?? 0
+        return bt - at
+      })[0]
+    : null
 
   return (
     <>
@@ -63,6 +92,34 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Active game / continue block */}
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
+            Folyamatban
+          </p>
+          {gamesLoading ? (
+            <div className="flex justify-center py-6">
+              <Spinner size="sm" />
+            </div>
+          ) : mostUrgentGame ? (
+            <>
+              <GameCard game={mostUrgentGame} currentUid={currentUid} />
+              {activeGames.length > 1 && (
+                <button
+                  onClick={() => router.push(ROUTES.GAMES)}
+                  className="text-xs text-primary-600 dark:text-primary-400 font-medium text-center py-1 active:opacity-70"
+                >
+                  + {activeGames.length - 1} további aktív játék →
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-4 text-center">
+              <p className="text-sm text-muted-foreground">Nincs aktív játék</p>
+            </div>
+          )}
+        </div>
+
         {/* New game CTA */}
         <button
           onClick={() => router.push(ROUTES.GAMES_NEW)}
@@ -71,31 +128,27 @@ export default function DashboardPage() {
           + Új játék indítása
         </button>
 
-        {/* Game modes */}
-        <div className="flex flex-col gap-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
-            Játékmódok
-          </p>
-          <div className="grid grid-cols-3 gap-2.5">
-            {MODE_CARDS.map(({ mode, emoji, label, desc, cls, badge }) => (
-              <button
-                key={mode}
-                onClick={() => router.push(`${ROUTES.GAMES_NEW}?mode=${mode}`)}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-2xl border-2 py-4 px-2 text-center',
-                  'active:scale-[0.97] transition-transform',
-                  cls
-                )}
-              >
-                <span className="text-2xl">{emoji}</span>
-                <div>
-                  <p className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full', badge)}>{label}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{desc}</p>
-                </div>
-              </button>
-            ))}
+        {/* Mini stats */}
+        {profile && !gamesLoading && (
+          <MiniStats
+            stats={[
+              { label: 'Aktív', value: activeGames.length },
+              { label: 'Összes', value: profile.gamesPlayed },
+              { label: 'Nyert', value: profile.gamesWon },
+              { label: 'Barátok', value: friendships.length },
+            ]}
+          />
+        )}
+
+        {/* Recent finished game */}
+        {recentFinishedGame && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
+              Legutóbbi meccs
+            </p>
+            <GameCard game={recentFinishedGame} currentUid={currentUid} />
           </div>
-        </div>
+        )}
 
         {/* Quick nav */}
         <div className="flex flex-col gap-2.5">
@@ -109,7 +162,9 @@ export default function DashboardPage() {
             >
               <span className="text-xl">🎮</span>
               <p className="text-sm font-semibold text-foreground">Aktív játékok</p>
-              <p className="text-xs text-muted-foreground">Folyamatban lévők</p>
+              <p className="text-xs text-muted-foreground">
+                {activeGames.length > 0 ? `${activeGames.length} folyamatban` : 'Folyamatban lévők'}
+              </p>
             </button>
             <button
               onClick={() => router.push(ROUTES.HISTORY)}
@@ -149,6 +204,32 @@ export default function DashboardPage() {
                 {incoming.length > 0 ? `${incoming.length} új kérés` : 'Nincs függő'}
               </p>
             </button>
+          </div>
+        </div>
+
+        {/* Game modes */}
+        <div className="flex flex-col gap-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-0.5">
+            Játékmódok
+          </p>
+          <div className="grid grid-cols-3 gap-2.5">
+            {MODE_CARDS.map(({ mode, emoji, label, desc, cls, badge }) => (
+              <button
+                key={mode}
+                onClick={() => router.push(`${ROUTES.GAMES_NEW}?mode=${mode}`)}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-2xl border-2 py-4 px-2 text-center',
+                  'active:scale-[0.97] transition-transform',
+                  cls
+                )}
+              >
+                <span className="text-2xl">{emoji}</span>
+                <div>
+                  <p className={cn('text-[11px] font-bold px-2 py-0.5 rounded-full', badge)}>{label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{desc}</p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
