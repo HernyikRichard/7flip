@@ -9,6 +9,9 @@ import {
   limit,
   serverTimestamp,
   runTransaction,
+  onSnapshot,
+  documentId,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import db from '@/lib/firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
@@ -78,6 +81,26 @@ export async function updateUserProfile(
       updatedAt: serverTimestamp(),
     })
   }
+}
+
+// ── Több felhasználói profil real-time figyelés (pl. barátlista friss fotókhoz) ─
+export function subscribeUserProfiles(
+  uids: string[],
+  onChange: (profiles: Record<string, UserProfile>) => void
+): Unsubscribe {
+  if (uids.length === 0) {
+    onChange({})
+    return () => {}
+  }
+  const q = query(
+    collection(db, COLLECTIONS.USERS),
+    where(documentId(), 'in', uids.slice(0, 30))
+  )
+  return onSnapshot(q, (snap) => {
+    const profiles: Record<string, UserProfile> = {}
+    snap.docs.forEach((d) => { profiles[d.id] = d.data() as UserProfile })
+    onChange(profiles)
+  })
 }
 
 // ── Felhasználók keresése username alapján (barát kereséshez) ─────────────────

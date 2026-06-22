@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAuth } from './useAuth'
 import {
   subscribeFriendships,
@@ -12,27 +12,27 @@ import {
   cancelFriendRequest,
   removeFriend,
 } from '@/services/friend.service'
-import type { Friendship, FriendRequest } from '@/types'
+import { subscribeUserProfiles } from '@/services/user.service'
+import type { Friendship, FriendRequest, UserProfile } from '@/types'
 
 interface UseFriendsReturn {
   friendships: Friendship[]
   incoming: FriendRequest[]
   outgoing: FriendRequest[]
   loading: boolean
-  // Akciók
   sendRequest: (toUid: string) => Promise<void>
   acceptRequest: (requestId: string) => Promise<void>
   rejectRequest: (requestId: string) => Promise<void>
   cancelRequest: (requestId: string) => Promise<void>
   removeFriendship: (friendshipId: string) => Promise<void>
-  // Segéd: adott uid barát-e már?
   isFriend: (uid: string) => boolean
   hasPendingRequest: (uid: string) => boolean
 }
 
 export function useFriends(): UseFriendsReturn {
   const { user } = useAuth()
-  const [friendships, setFriendships] = useState<Friendship[]>([])
+  const [rawFriendships, setRawFriendships] = useState<Friendship[]>([])
+  const [friendProfiles, setFriendProfiles] = useState<Record<string, UserProfile>>({})
   const [incoming, setIncoming] = useState<FriendRequest[]>([])
   const [outgoing, setOutgoing] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,7 +47,7 @@ export function useFriends(): UseFriendsReturn {
     }
 
     const unsubF = subscribeFriendships(user.uid, (data) => {
-      setFriendships(data)
+      setRawFriendships(data)
       checkDone()
     })
     const unsubI = subscribeIncomingRequests(user.uid, (data) => {
@@ -66,10 +66,44 @@ export function useFriends(): UseFriendsReturn {
     }
   }, [user])
 
+  // Barátok uid-jai — friss profil lekéréshez
+  const friendUids = useMemo(() => {
+    if (!user) return []
+    return rawFriendships
+      .map((f) => f.userIds.find((id) => id !== user.uid))
+      .filter(Boolean) as string[]
+  }, [rawFriendships, user])
+
+  const friendUidKey = friendUids.slice().sort().join(',')
+
+  useEffect(() => {
+    if (friendUids.length === 0) { setFriendProfiles({}); return }
+    return subscribeUserProfiles(friendUids, setFriendProfiles)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friendUidKey])
+
+  // Mergelés: denormalizált friendship adat + élő profil (photoURL, displayName)
+  const friendships = useMemo<Friendship[]>(() => {
+    if (Object.keys(friendProfiles).length === 0) return rawFriendships
+    return rawFriendships.map((f) => {
+      const enrichedUsers = { ...f.users }
+      Object.keys(enrichedUsers).forEach((uid) => {
+        const profile = friendProfiles[uid]
+        if (profile) {
+          enrichedUsers[uid] = {
+            ...enrichedUsers[uid],
+            photoURL: profile.photoURL,
+            displayName: profile.displayName,
+          }
+        }
+      })
+      return { ...f, users: enrichedUsers }
+    })
+  }, [rawFriendships, friendProfiles])
+
   const isFriend = useCallback(
-    (uid: string) =>
-      friendships.some((f) => f.userIds.includes(uid)),
-    [friendships]
+    (uid: string) => rawFriendships.some((f) => f.userIds.includes(uid)),
+    [rawFriendships]
   )
 
   const hasPendingRequest = useCallback(
