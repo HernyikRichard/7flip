@@ -59,6 +59,13 @@ service cloud.firestore {
         request.auth.uid in resource.data.userIds;
     }
 
+    // ── User Status (aktív játék státusz — bármely bejelentkezett user olvashatja/írhatja) ──
+    match /userStatus/{uid} {
+      allow read: if isSignedIn();
+      // Bármely bejelentkezett user írhat (game service frissíti a többi játékos státuszát is)
+      allow write: if isSignedIn();
+    }
+
     // ── Games ─────────────────────────────────────────────────────────────────
     match /games/{gameId} {
       // Olvasás: játékos, QR lobby meghívott, VAGY spectateEnabled néző.

@@ -1,5 +1,6 @@
 export const COLLECTIONS = {
   USERS: 'users',
+  USER_STATUS: 'userStatus',
   FRIEND_REQUESTS: 'friendRequests',
   FRIENDSHIPS: 'friendships',
   GAMES: 'games',

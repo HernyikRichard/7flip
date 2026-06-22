@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useFriends } from '@/hooks/useFriends'
+import { useFriendsActiveGames } from '@/hooks/useFriendsActiveGames'
 import { useToast } from '@/hooks/useToast'
 import TopBar from '@/components/layout/TopBar'
 import FriendSearch from '@/components/friends/FriendSearch'
@@ -17,9 +19,16 @@ type Tab = 'friends' | 'search'
 
 export default function FriendsPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const { friendships, incoming, loading, sendRequest, removeFriendship, isFriend, hasPendingRequest } = useFriends()
   const { toast } = useToast()
   const [tab, setTab] = useState<Tab>('friends')
+
+  const friendUids = useMemo(
+    () => friendships.map((f) => f.userIds.find((id) => id !== user?.uid)!).filter(Boolean),
+    [friendships, user?.uid]
+  )
+  const activeGames = useFriendsActiveGames(friendUids)
 
   async function handleSendRequest(toUid: string) {
     await sendRequest(toUid)
@@ -29,6 +38,10 @@ export default function FriendsPage() {
   async function handleRemove(friendshipId: string) {
     await removeFriendship(friendshipId)
     toast('Barát eltávolítva.', 'info')
+  }
+
+  function handleWatch(gameId: string) {
+    router.push(`/games/${gameId}`)
   }
 
   if (!user) return null
@@ -86,7 +99,13 @@ export default function FriendsPage() {
             <Spinner size="lg" />
           </div>
         ) : tab === 'friends' ? (
-          <FriendList friendships={friendships} currentUid={user.uid} onRemove={handleRemove} />
+          <FriendList
+            friendships={friendships}
+            currentUid={user.uid}
+            activeGames={activeGames}
+            onRemove={handleRemove}
+            onWatch={handleWatch}
+          />
         ) : (
           <FriendSearch isFriend={isFriend} hasPendingRequest={hasPendingRequest} onSendRequest={handleSendRequest} />
         )}

@@ -21,6 +21,7 @@ import { getModeEngine } from '@/lib/game-modes'
 import type { GameMode } from '@/types/gameMode.types'
 import { refineDiscardTargetCards } from '@/lib/actionResolver'
 import { getGame } from './game.service'
+import { setUsersActiveGame, clearUsersActiveGame } from './userStatus.service'
 import type { Round, PendingAction, RoundPlayerState, CardRef } from '@/types'
 import type { Card } from '@/types/card.types'
 
@@ -165,6 +166,12 @@ export async function finishRound(gameId: string, roundId: string): Promise<void
     pendingAction: null,
     ...(winnerId ? { winnerId, finishedAt: serverTimestamp() } : {}),
   })
+
+  if (winnerId) {
+    await clearUsersActiveGame(game.playerUids)
+  } else {
+    await setUsersActiveGame(game.playerUids, gameId, 'round_finished', game.gameMode ?? 'classic')
+  }
 }
 
 // ── Kártyahúzás ──────────────────────────────────────────────────────────────
